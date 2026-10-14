@@ -30,7 +30,7 @@ public final class SidebarRollout {
     }
 
     private static boolean enabled() {
-        return BannerConfig.get(BannerConfig.ROLLOUT_BUTTONS);
+        return com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_BUTTONS);
     }
 
     private static int index(SidebarSide side) {
@@ -54,14 +54,14 @@ public final class SidebarRollout {
         boolean changed = false;
         if (!initialized) {
             initialized = true;
-            shown[LEFT] = BannerConfig.get(BannerConfig.LEFT_SIDEBAR_INITIAL) == BannerConfig.SidebarState.IN;
-            shown[RIGHT] = BannerConfig.get(BannerConfig.RIGHT_SIDEBAR_INITIAL) == BannerConfig.SidebarState.IN;
+            shown[LEFT] = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.LEFT_SIDEBAR_INITIAL) == com.hamish.emireorganised.Config.SidebarState.IN;
+            shown[RIGHT] = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.RIGHT_SIDEBAR_INITIAL) == com.hamish.emireorganised.Config.SidebarState.IN;
             for (int i = 0; i < 2; i++) {
                 progress[i] = shown[i] ? 1 : 0;
             }
             changed = true;
         }
-        if (BannerConfig.get(BannerConfig.ANIMATE_ON_OPEN)) {
+        if (com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ANIMATE_ON_OPEN)) {
             for (int i = 0; i < 2; i++) {
                 if (shown[i] && progress[i] != 0) {
                     progress[i] = 0;
@@ -92,7 +92,7 @@ public final class SidebarRollout {
             }
             return changed;
         }
-        int duration = BannerConfig.get(BannerConfig.ROLLOUT_DURATION);
+        int duration = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_DURATION);
         float step = duration <= 0 ? 1 : dt / (float) duration;
         for (int i = 0; i < 2; i++) {
             float target = shown[i] ? 1 : 0;
@@ -115,7 +115,7 @@ public final class SidebarRollout {
         if (i < 0 || progress[i] >= 1) {
             return bounds;
         }
-        int full = bounds.width() + 4 + com.hamish.emireorganised.port.compat.RemiCompat.tabBarWidth() + 40;
+        int full = bounds.width() + 4 + com.hamish.emireorganised.port.SidebarExtras.tabBarWidth() + 40;
         // Fully rolled out: push everything (including REMI's tab bar) well off screen.
         int offset = progress[i] <= 0 ? full + 4000 : Math.round((1 - eased(i)) * full);
         return new Bounds(i == LEFT ? bounds.x() - offset : bounds.x() + offset, bounds.y(), bounds.width(), bounds.height());
@@ -129,7 +129,7 @@ public final class SidebarRollout {
         EmiScreenManager.SidebarPanel panel = EmiScreenManager.getPanelFor(i == LEFT ? SidebarSide.LEFT : SidebarSide.RIGHT);
         Bounds bounds = panel != null && panel.space != null && panel.isVisible() ? panel.getBounds() : null;
         if (bounds != null) {
-            bounds = com.hamish.emireorganised.port.compat.RemiCompat.withTabBar(bounds);
+            bounds = com.hamish.emireorganised.port.SidebarExtras.withTabBar(bounds);
         }
         if (bounds != null && bounds.height() > 0 && progress[i] >= 1) {
             lastShownBounds[i] = bounds;
@@ -140,9 +140,9 @@ public final class SidebarRollout {
         int sw = base.screen().width;
         int sh = base.screen().height;
         Bounds container = base.bounds();
-        int bw = BannerConfig.get(BannerConfig.ROLLOUT_BUTTON_WIDTH);
-        int bh = BannerConfig.get(BannerConfig.ROLLOUT_BUTTON_HEIGHT);
-        int pad = BannerConfig.get(BannerConfig.ROLLOUT_BUTTON_PADDING);
+        int bw = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_BUTTON_WIDTH);
+        int bh = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_BUTTON_HEIGHT);
+        int pad = com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_BUTTON_PADDING);
         int x;
         if (i == LEFT) {
             x = bounds != null ? bounds.right() + pad : pad;
@@ -152,7 +152,7 @@ public final class SidebarRollout {
             x = Math.min(sw - bw - pad, Math.max(x, container.right()));
         }
         Bounds vertical = lastShownBounds[i] != null ? lastShownBounds[i] : new Bounds(0, 0, sw, sh);
-        int y = switch (BannerConfig.get(BannerConfig.ROLLOUT_BUTTON_POSITION)) {
+        int y = switch (com.hamish.emireorganised.Config.get(com.hamish.emireorganised.Config.ROLLOUT_BUTTON_POSITION)) {
             case TOP -> vertical.top() + pad;
             case MIDDLE -> vertical.top() + (vertical.height() - bh) / 2;
             case BOTTOM -> vertical.bottom() - bh - pad;
