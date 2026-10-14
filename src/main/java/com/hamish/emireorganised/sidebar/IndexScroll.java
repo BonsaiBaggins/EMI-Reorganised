@@ -21,6 +21,26 @@ public final class IndexScroll {
     private IndexScroll() {
     }
 
+    private static final net.minecraft.resources.ResourceLocation SCROLLER =
+            net.minecraft.resources.ResourceLocation.withDefaultNamespace("container/creative_inventory/scroller");
+
+    private static Config.ScrollbarStyle style() {
+        return Config.get(Config.SCROLLBAR_STYLE);
+    }
+
+    private static int trackWidth() {
+        return switch (style()) {
+            case NARROW -> BAR_W;
+            case VANILLA_CREATIVE -> 14;
+            case NARROW_CREATIVE -> 8;
+        };
+    }
+
+    /** Width a scrolling panel needs beyond EMI's normal frame padding to fit the bar. */
+    public static int extraWidth(@Nullable SidebarType type) {
+        return enabled(type) ? Math.max(0, trackWidth() - 3) : 0;
+    }
+
     public static boolean enabled(@Nullable SidebarType type) {
         if (type == SidebarType.INDEX) {
             return Config.get(Config.INDEX_SCROLLING);
@@ -66,12 +86,24 @@ public final class IndexScroll {
             BARS.remove(type);
             return;
         }
-        int x = space.tx + space.tw * 18 + 1;
+        boolean narrow = style() == Config.ScrollbarStyle.NARROW;
+        int tw = trackWidth();
+        int x = space.tx + space.tw * 18 + (narrow ? 1 : 2);
         int top = space.ty;
         int h = space.th * 18;
-        BARS.put(type, new Bounds(x - 1, top, BAR_W + 2, h));
+        BARS.put(type, new Bounds(x - 1, top, tw + 2, h));
         int thumb = thumbHeight(h, max, space.th);
-        int ty = top + Math.round((h - thumb) * (ROWS.getOrDefault(type, 0) / (float) max));
+        float frac = ROWS.getOrDefault(type, 0) / (float) max;
+        if (!narrow) {
+            graphics.fill(x, top, x + tw, top + h, 0xFF8B8B8B);
+            graphics.fill(x, top, x + tw - 1, top + 1, 0xFF373737);
+            graphics.fill(x, top, x + 1, top + h - 1, 0xFF373737);
+            graphics.fill(x + 1, top + h - 1, x + tw, top + h, 0xFFFFFFFF);
+            graphics.fill(x + tw - 1, top + 1, x + tw, top + h, 0xFFFFFFFF);
+            graphics.blitSprite(SCROLLER, x + 1, top + 1 + Math.round((h - 2 - thumb) * frac), tw - 2, thumb);
+            return;
+        }
+        int ty = top + Math.round((h - thumb) * frac);
         graphics.fill(x, top, x + BAR_W, top + h, 0x50000000);
         boolean active = dragging == type;
         graphics.fill(x, ty, x + BAR_W, ty + thumb, active ? 0xFFFFFFFF : 0xFFC6C6C6);
@@ -79,6 +111,9 @@ public final class IndexScroll {
     }
 
     private static int thumbHeight(int h, int max, int visibleRows) {
+        if (style() != Config.ScrollbarStyle.NARROW) {
+            return 15;
+        }
         return Math.max(8, Math.min(h, h * visibleRows / Math.max(1, visibleRows + max)));
     }
 

@@ -11,7 +11,7 @@ import org.lwjgl.glfw.GLFW;
 /** The key that opens the Tab Editor (K by default, also works from inventory screens). */
 public final class EditorKeys {
     public static final KeyMapping OPEN = new KeyMapping("key.emi_reorganised.open_editor", KeyConflictContext.UNIVERSAL,
-            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, "key.categories.emi_reorganised");
+            InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.emi_reorganised");
 
     private EditorKeys() {
     }

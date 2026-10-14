@@ -23,6 +23,8 @@ import org.jetbrains.annotations.Nullable;
  * the full index; the others show one of our tabs.
  */
 public final class VerticalTabs {
+    /** How far the tabs sit over (and below the top of) the index, so the selected tab joins the vanilla frame. */
+    private static final int OVERLAP = 3;
     private static final ResourceLocation TAB = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
     private static final ResourceLocation TAB_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
     private static final ResourceLocation SCROLL_UP = ResourceLocation.withDefaultNamespace("transferable_list/move_up");
@@ -61,6 +63,10 @@ public final class VerticalTabs {
     /** Called while EMI builds the index sidebar: takes the tab column's room from the outer edge. */
     public static Bounds reserve(EmiScreenManager.SidebarPanel panel, Bounds bounds) {
         bounds = com.hamish.emireorganised.editor.OpenEditorButton.avoid(panel, bounds);
+        int extra = IndexScroll.extraWidth(panel.getType());
+        if (extra > 0 && bounds.width() > extra) {
+            bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() - extra, bounds.height());
+        }
         if (!enabled() || !panel.supportsType(SidebarType.INDEX) || bounds.width() <= width()) {
             return bounds;
         }
@@ -123,10 +129,10 @@ public final class VerticalTabs {
         int edgeRight = bounds.right();
         if (panel.theme == dev.emi.emi.config.SidebarTheme.VANILLA && panel.space != null) {
             edgeLeft = panel.space.tx - 9;
-            edgeRight = panel.space.tx + panel.space.tw * 18 + 9;
+            edgeRight = panel.space.tx + panel.space.tw * 18 + 9 + IndexScroll.extraWidth(panel.getType());
         }
-        int x = (left ? edgeLeft - w : edgeRight) + slideOffset;
-        int top = bounds.y();
+        int x = (left ? edgeLeft - w + OVERLAP : edgeRight - OVERLAP) + slideOffset;
+        int top = bounds.y() + OVERLAP;
         int step = s + spacing();
         List<Entry> entries = entries();
         int visible = Math.max(1, (bounds.height() - (entries.size() * step > bounds.height() ? 20 : 0)) / step);

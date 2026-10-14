@@ -146,14 +146,7 @@ public class TabEditorScreen extends Screen {
         int bottomY = height - 22;
         for (Button button : List.of(
                 Button.builder(Component.translatable("emi_reorganised.editor.add_banner"), b -> addBanner()).build(),
-                Button.builder(Component.translatable("emi_reorganised.editor.groups_toggle"), b -> model.setAllOpen(!model.anyOpen())).build(),
-                Button.builder(Component.translatable("emi_reorganised.editor.tab_hide"), b -> {
-                    Tab t = model.current();
-                    if (t != null) {
-                        t.hidden = !t.hidden;
-                        model.markDirty();
-                    }
-                }).build())) {
+                Button.builder(Component.translatable("emi_reorganised.editor.groups_toggle"), b -> model.setAllOpen(!model.anyOpen())).build())) {
             int w = font.width(button.getMessage()) + 12;
             button.setRectangle(w, 20, bx, bottomY);
             addRenderableWidget(button);
@@ -917,7 +910,8 @@ public class TabEditorScreen extends Screen {
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), model::copy, any));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.paste"), model::paste, model.canPaste()));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.delete"), model::delete, any));
-        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.new_group"), this::newGroup, itemsSelected));
+        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.new_group"), this::newGroup,
+                itemsSelected && (cell == null || cell.kind() != Kind.GROUP)));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.add_to_group"), () -> adding = model.selectedStacks(), itemsSelected));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.new_banner"), this::addBanner, model.current() != null));
         if (cell != null && cell.kind() == Kind.GROUP) {

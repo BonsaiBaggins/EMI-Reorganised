@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 
 /** An item group's icon in EMI's index. Clicking it opens or closes the group; its stacks are the group's items. */
 public final class GroupIngredient implements EmiIngredient {
-    private static final int FRAME = 0xFF7FA7D9;
+    private static final int FRAME = 0xFF5E5E5E;
 
     public final String key;
     public final ItemGroup group;
@@ -70,7 +70,7 @@ public final class GroupIngredient implements EmiIngredient {
         graphics.fill(x - 1, y, x, y + 16, FRAME);
         graphics.fill(x + 16, y, x + 17, y + 16, FRAME);
         if ((flags & RENDER_ICON) != 0) {
-            graphics.renderItem(icon, x, y);
+            renderCascade(graphics, x, y);
         }
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 200);
@@ -90,5 +90,34 @@ public final class GroupIngredient implements EmiIngredient {
 
     private static ClientTooltipComponent line(Component text) {
         return ClientTooltipComponent.create(text.getVisualOrderText());
+    }
+
+    /** Up to three of the group's items, stacked back to front with a small diagonal offset. */
+    private void renderCascade(GuiGraphics graphics, int x, int y) {
+        List<ItemStack> layers = new java.util.ArrayList<>();
+        layers.add(icon);
+        for (EmiStack member : members) {
+            if (layers.size() >= 3) {
+                break;
+            }
+            ItemStack stack = member.getItemStack();
+            if (!stack.isEmpty() && !ItemStack.isSameItemSameComponents(stack, icon)) {
+                layers.add(stack);
+            }
+        }
+        if (layers.size() == 1) {
+            graphics.renderItem(icon, x, y);
+            return;
+        }
+        float scale = 0.75f;
+        float step = (16 - 16 * scale) / (layers.size() - 1);
+        var pose = graphics.pose();
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            pose.pushPose();
+            pose.translate(x + step * (layers.size() - 1 - i), y + step * i, (layers.size() - 1 - i) * 40);
+            pose.scale(scale, scale, scale);
+            graphics.renderItem(layers.get(i), 0, 0);
+            pose.popPose();
+        }
     }
 }

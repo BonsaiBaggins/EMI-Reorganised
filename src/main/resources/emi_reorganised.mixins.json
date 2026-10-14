@@ -11,7 +11,8 @@
     "ScreenSpaceMixin",
     "VerticalTabsMixin",
     "IndexGroupMixin",
-    "SidebarPanelScrollMixin"
+    "SidebarPanelScrollMixin",
+    "SidebarBackgroundMixin"
   ],
   "injectors": {
     "defaultRequire": 1

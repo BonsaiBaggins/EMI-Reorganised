@@ -30,10 +30,13 @@ public final class Config {
             .comment("Gap between vertical tab buttons.").defineInRange("tabSpacing", 1, 0, 10);
     public static final ModConfigSpec.BooleanValue INDEX_SCROLLING = BUILDER
             .comment("Scroll the index with a scroll bar and the mouse wheel instead of pages (no page buttons, no wrapping).")
-            .define("indexScrolling", false);
+            .define("indexScrolling", true);
     public static final ModConfigSpec.BooleanValue FAVOURITES_SCROLLING = BUILDER
             .comment("Scroll the favourites sidebar with a scroll bar and the mouse wheel instead of pages.")
-            .define("favouritesScrolling", false);
+            .define("favouritesScrolling", true);
+    public static final ModConfigSpec.EnumValue<ScrollbarStyle> SCROLLBAR_STYLE = BUILDER
+            .comment("Scroll bar look: NARROW, VANILLA_CREATIVE, or NARROW_CREATIVE (a half-width creative bar).")
+            .defineEnum("scrollbarStyle", ScrollbarStyle.NARROW);
 
     static {
         BUILDER.pop();
@@ -76,7 +79,7 @@ public final class Config {
     }
 
     public static final ModConfigSpec.EnumValue<EditorButton> EDITOR_BUTTON = BUILDER
-            .comment("When to show the Open Editor button beside the inventory.").defineEnum("openEditorButton", EditorButton.ALWAYS);
+            .comment("When to show the Open Editor button beside the inventory.").defineEnum("openEditorButton", EditorButton.CREATIVE_ONLY);
 
     static {
         BUILDER.pop();
@@ -99,6 +102,12 @@ public final class Config {
         DEFAULT,
         ABOVE_INDEX,
         BELOW_INDEX
+    }
+
+    public enum ScrollbarStyle {
+        NARROW,
+        VANILLA_CREATIVE,
+        NARROW_CREATIVE
     }
 
     public enum TabSide {
