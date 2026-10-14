@@ -3,5 +3,14 @@
   "emi_reorganised.tab.unsorted": "Unsorted",
   "emi_reorganised.group.count": "%s items",
   "emi_reorganised.group.expand": "Click to open",
-  "emi_reorganised.group.collapse": "Click to close"
+  "emi_reorganised.group.collapse": "Click to close",
+  "emi_reorganised.colors": "Banner Colours",
+  "emi_reorganised.colors.tip": "Customise colours",
+  "emi_reorganised.colors.title": "Title",
+  "emi_reorganised.colors.secondary": "Title outline",
+  "emi_reorganised.colors.background": "Title background",
+  "emi_reorganised.colors.fill_left": "Background left",
+  "emi_reorganised.colors.fill_right": "Background right",
+  "emi_reorganised.colors.default": "Default",
+  "emi_reorganised.colors.hex_tip": "RRGGBB, or AARRGGBB to set transparency"
 }
