@@ -131,9 +131,10 @@ public class TabEditorScreen extends Screen {
             refreshName();
         }).bounds(right - 124, 4, 60, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.add_banner"), b -> addBanner())
-                .bounds(gridX(), 4, 60, 20).build());
+                .bounds(gridX(), 4, font.width(Component.translatable("emi_reorganised.editor.add_banner")) + 12, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.groups_toggle"),
-                b -> model.setAllOpen(!model.anyOpen())).bounds(gridX() + 64, 4, 84, 20).build());
+                b -> model.setAllOpen(!model.anyOpen())).bounds(gridX() + font.width(Component.translatable("emi_reorganised.editor.add_banner")) + 16, 4,
+                font.width(Component.translatable("emi_reorganised.editor.groups_toggle")) + 12, 20).build());
 
         int bw = (LEFT_W - 8) / 3;
         int by = height - 4 - 44;
@@ -440,7 +441,9 @@ public class TabEditorScreen extends Screen {
         Component title = adding != null
                 ? Component.translatable("emi_reorganised.editor.adding").withStyle(s -> s.withColor(0xC080FF))
                 : Component.translatable("emi_reorganised.editor.title").append(model.dirty() ? " *" : "");
-        graphics.drawString(font, title, gridX() + 152, 10, 0xFFFFFF);
+        int titleX = gridX() + font.width(Component.translatable("emi_reorganised.editor.add_banner"))
+                + font.width(Component.translatable("emi_reorganised.editor.groups_toggle")) + 36;
+        graphics.drawString(font, title, titleX, 10, 0xFFFFFF);
         if (dragging) {
             List<ItemStack> ghost = pressPalette != null ? List.of(pressPalette) : model.selectedStacks();
             if (!ghost.isEmpty()) {
@@ -739,10 +742,15 @@ public class TabEditorScreen extends Screen {
         if (cell != null && cell.kind() == Kind.GROUP) {
             ItemGroup g = ((TabEntry.Group) cell.entry()).group();
             items.add(new MenuItem(Component.translatable("emi_reorganised.menu.edit_group"), () -> minecraft.setScreen(
-                    new TextPromptScreen(this, Component.translatable("emi_reorganised.menu.edit_group"), g.name, name -> {
-                        g.name = name;
-                        model.markDirty();
-                    })), true));
+                    new GroupEditScreen(this, g, model::markDirty)), true));
+            items.add(new MenuItem(Component.translatable("emi_reorganised.menu.ungroup"), () -> {
+                List<TabEntry> entries = model.entries();
+                int index = cell.ref().entry();
+                entries.remove(index);
+                entries.addAll(index, g.items.stream().map(s -> (TabEntry) new TabEntry.Item(s)).toList());
+                model.selection.clear();
+                model.markDirty();
+            }, true));
         }
         if (cell != null && cell.kind() == Kind.BANNER) {
             BannerDef def = ((TabEntry.Banner) cell.entry()).banner();

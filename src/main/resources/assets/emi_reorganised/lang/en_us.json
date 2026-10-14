@@ -37,7 +37,14 @@
   "emi_reorganised.menu.new_group": "New group",
   "emi_reorganised.menu.add_to_group": "Add to group",
   "emi_reorganised.menu.new_banner": "New banner",
-  "emi_reorganised.menu.edit_group": "Rename group",
+  "emi_reorganised.menu.edit_group": "Edit group",
   "emi_reorganised.menu.rename": "Rename banner",
-  "emi_reorganised.menu.tab_icon": "Use as tab icon"
+  "emi_reorganised.menu.tab_icon": "Use as tab icon",
+  "emi_reorganised.group.edit": "Edit Item Group",
+  "emi_reorganised.group.fill": "Fill",
+  "emi_reorganised.group.name": "Name",
+  "emi_reorganised.group.regex": "Regex",
+  "emi_reorganised.group.tag": "Tag",
+  "emi_reorganised.group.items_hint": "%s items. Drag to reorder, right-click to remove",
+  "emi_reorganised.menu.ungroup": "Ungroup"
 }
