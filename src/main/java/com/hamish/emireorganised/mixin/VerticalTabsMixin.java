@@ -19,7 +19,7 @@ public abstract class VerticalTabsMixin {
         return VerticalTabs.reserve(panel, bounds);
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
+    @Inject(method = "render", at = @At("RETURN"))
     private static void emireorganised$renderTabs(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         VerticalTabs.render(context.raw(), mouseX, mouseY);
     }

@@ -38,7 +38,11 @@ public final class VerticalTabs {
     }
 
     public static boolean enabled() {
-        return Config.get(Config.VERTICAL_TABS) && TabStore.isLoaded();
+        if (!Config.get(Config.VERTICAL_TABS)) {
+            return false;
+        }
+        TabStore.ensureLoaded();
+        return TabStore.isLoaded();
     }
 
     public static int size() {
