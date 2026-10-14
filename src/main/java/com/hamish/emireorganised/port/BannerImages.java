@@ -59,6 +59,27 @@ public final class BannerImages {
         }
     }
 
+    private static int version;
+
+    /** Bumped when images change on disk, so cached index layouts pick up new images. */
+    public static int version() {
+        return version;
+    }
+
+    public static void bump() {
+        version++;
+    }
+
+    /** The image file for a banner, or null if unset or missing. */
+    @org.jetbrains.annotations.Nullable
+    public static Path path(@org.jetbrains.annotations.Nullable String image) {
+        if (image == null || image.isEmpty()) {
+            return null;
+        }
+        Path path = com.hamish.emireorganised.data.TabStore.dir().resolve("images").resolve(image);
+        return java.nio.file.Files.isRegularFile(path) ? path : null;
+    }
+
     public static void setPlaying(Path path, boolean playing) {
         Image image = IMAGES.get(path);
         if (image != null) {
