@@ -112,17 +112,17 @@ public final class BannerImages {
                         image.frametime = animation.has("frametime") ? animation.get("frametime").getAsInt() : 1;
                     }
                 } catch (Exception e) {
-                    SimulatedEmiBanners.LOGGER.warn("Invalid animation metadata {}", meta, e);
+                    com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Invalid animation metadata {}", meta, e);
                 }
             }
             image.frameHeight = Math.max(1, Math.min(image.frameHeight, image.height));
             image.frames = Math.max(1, image.height / image.frameHeight);
             image.edges = edges(pixels, image.frameHeight);
             image.dynamic = new DynamicTexture(pixels);
-            image.texture = ResourceLocation.fromNamespaceAndPath(SimulatedEmiBanners.MOD_ID, "banner_image_" + counter++);
+            image.texture = ResourceLocation.fromNamespaceAndPath(com.hamish.emireorganised.EmiReorganised.MOD_ID, "banner_image_" + counter++);
             Minecraft.getInstance().getTextureManager().register(image.texture, image.dynamic);
         } catch (Exception e) {
-            SimulatedEmiBanners.LOGGER.warn("Failed to load banner image {}", path, e);
+            com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Failed to load banner image {}", path, e);
         }
     }
 
