@@ -19,9 +19,13 @@ public final class BannerImageFiles {
     private BannerImageFiles() {
     }
 
+    private static Path dir() {
+        return com.hamish.emireorganised.data.TabStore.dir().resolve("images");
+    }
+
     /** Writes a new gradient image for the banner (using its fallback colours) and returns the file name. */
     public static String create(BannerDef banner) throws IOException {
-        Path dir = BannerImages.path("x").getParent();
+        Path dir = dir();
         Files.createDirectories(dir);
         String base = banner.name.replaceAll("[^A-Za-z0-9 _\\-]", "").trim();
         if (base.isEmpty()) {
@@ -48,14 +52,14 @@ public final class BannerImageFiles {
     }
 
     public static void delete(String file) throws IOException {
-        Files.deleteIfExists(BannerImages.path(file));
-        Files.deleteIfExists(BannerImages.path(file + ".mcmeta"));
+        Files.deleteIfExists(dir().resolve(file));
+        Files.deleteIfExists(dir().resolve(file + ".mcmeta"));
         BannerImages.bump();
     }
 
     /** Opens the file explorer with the image selected (or its folder where selecting isn't supported). */
     public static void show(String file) {
-        Path path = BannerImages.path(file).toAbsolutePath().normalize();
+        Path path = dir().resolve(file).toAbsolutePath().normalize();
         try {
             switch (Util.getPlatform()) {
                 // Separate "/select," argument: Java quotes args with spaces, which explorer won't parse as "/select,<path>".
