@@ -55,7 +55,7 @@ public final class VerticalTabs {
 
     /** Width the tab column takes from the index sidebar (0 when hidden). */
     public static int width() {
-        return enabled() ? size() + 2 : 0;
+        return enabled() ? size() + 6 : 0;
     }
 
     /** Called while EMI builds the index sidebar: takes the tab column's room from the outer edge. */
@@ -65,13 +65,10 @@ public final class VerticalTabs {
         }
         int w = width();
         side = panel.side;
-        if (panel.side == SidebarSide.LEFT) {
+        if (leftOfIndex()) {
             return new Bounds(bounds.x() + w, bounds.y(), bounds.width() - w, bounds.height());
         }
-        if (panel.side == SidebarSide.RIGHT) {
-            return new Bounds(bounds.x(), bounds.y(), bounds.width() - w, bounds.height());
-        }
-        return bounds;
+        return new Bounds(bounds.x(), bounds.y(), bounds.width() - w, bounds.height());
     }
 
     private static List<Entry> entries() {
@@ -102,6 +99,15 @@ public final class VerticalTabs {
         slideOffset = offset;
     }
 
+    /** How far a tab sticks out from the index; selected and hovered tabs grow by 2 more. */
+    private static int depth() {
+        return size() + 4;
+    }
+
+    private static boolean leftOfIndex() {
+        return Config.get(Config.TAB_SIDE) == Config.TabSide.LEFT;
+    }
+
     public static void render(GuiGraphics graphics, int mouseX, int mouseY) {
         area = null;
         EmiScreenManager.SidebarPanel panel = enabled() ? indexPanel() : null;
@@ -110,7 +116,9 @@ public final class VerticalTabs {
         }
         Bounds bounds = panel.getBounds();
         int s = size();
-        int x = (panel.side == SidebarSide.LEFT ? bounds.x() - s - 2 : bounds.right() + 2) + slideOffset;
+        int w = width();
+        boolean left = leftOfIndex();
+        int x = (left ? bounds.x() - w : bounds.right()) + slideOffset;
         int top = bounds.y();
         int step = s + spacing();
         List<Entry> entries = entries();
@@ -118,18 +126,27 @@ public final class VerticalTabs {
         scroll = Math.max(0, Math.min(scroll, entries.size() - visible));
         boolean scrolling = entries.size() > visible;
         int y0 = top + (scrolling ? 10 : 0);
-        area = new Bounds(x, top, s, bounds.height());
+        area = new Bounds(x, top, w, bounds.height());
         Entry hovered = null;
         for (int i = scroll; i < Math.min(entries.size(), scroll + visible); i++) {
             Entry entry = entries.get(i);
             int y = y0 + (i - scroll) * step;
             boolean selected = java.util.Objects.equals(entry.id(), TabState.selected());
-            boolean hover = mouseX >= x && mouseX < x + s && mouseY >= y && mouseY < y + s;
-            graphics.blitSprite(selected ? TAB_SELECTED : TAB, x, y, s, s);
-            if (hover && !selected) {
-                graphics.fill(x + 1, y + 1, x + s - 1, y + s - 1, 0x40FFFFFF);
+            boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
+            int d = depth() + (selected || hover ? 2 : 0);
+            int tx = left ? x + w - d : x;
+            var pose = graphics.pose();
+            pose.pushPose();
+            if (left) {
+                pose.translate(tx, y + s, 0);
+                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(-90));
+            } else {
+                pose.translate(tx + d, y, 0);
+                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(90));
             }
-            int ix = x + (s - 16) / 2;
+            graphics.blitSprite(selected ? TAB_SELECTED : TAB, 0, 0, s, d);
+            pose.popPose();
+            int ix = tx + (d - 16) / 2 + (left ? -1 : 1);
             int iy = y + (s - 16) / 2;
             graphics.renderItem(entry.icon(), ix, iy);
             if (hover) {
@@ -137,8 +154,8 @@ public final class VerticalTabs {
             }
         }
         if (scrolling) {
-            graphics.blitSprite(SCROLL_UP, x + s / 2 - 16, top - 6, 32, 32);
-            graphics.blitSprite(SCROLL_DOWN, x + s / 2 - 16, top + bounds.height() - 26, 32, 32);
+            graphics.blitSprite(SCROLL_UP, x + w / 2 - 16, top - 6, 32, 32);
+            graphics.blitSprite(SCROLL_DOWN, x + w / 2 - 16, top + bounds.height() - 26, 32, 32);
         }
         if (hovered != null) {
             graphics.renderTooltip(Minecraft.getInstance().font, hovered.name(), mouseX, mouseY);
@@ -173,6 +190,7 @@ public final class VerticalTabs {
         if (i >= 0 && i < entries.size() && (mouseY - y0) % step < s) {
             TabState.select(entries.get(i).id());
             panel.page = 0;
+            IndexScroll.reset(SidebarType.INDEX);
             Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
                     net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
             return true;

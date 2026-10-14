@@ -10,7 +10,8 @@
     "EmiRolloutMixin",
     "ScreenSpaceMixin",
     "VerticalTabsMixin",
-    "IndexGroupMixin"
+    "IndexGroupMixin",
+    "SidebarPanelScrollMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -33,8 +33,26 @@ public abstract class ScreenSpaceMixin {
     @Unique
     private BannerLayout emireorganised$layout = BannerLayout.NONE;
 
+    @Unique
+    private int emireorganised$offset;
+
     @WrapMethod(method = "getStacks")
     private List<? extends EmiIngredient> emireorganised$stacks(Operation<List<? extends EmiIngredient>> operation) {
+        List<? extends EmiIngredient> full = emireorganised$fullStacks(operation);
+        EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        int offset = 0;
+        if (full != null && com.hamish.emireorganised.sidebar.IndexScroll.enabled(space.getType())) {
+            offset = Math.min(full.size(), com.hamish.emireorganised.sidebar.IndexScroll.row(space, space.getType(), full.size()) * space.tw);
+        }
+        if (offset != emireorganised$offset) {
+            emireorganised$offset = offset;
+            batcher.repopulate();
+        }
+        return offset == 0 || full == null ? full : full.subList(offset, full.size());
+    }
+
+    @Unique
+    private List<? extends EmiIngredient> emireorganised$fullStacks(Operation<List<? extends EmiIngredient>> operation) {
         List<? extends EmiIngredient> original = operation.call();
         EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
         if (original == null || original == emireorganised$layout.stacks) {
@@ -63,7 +81,7 @@ public abstract class ScreenSpaceMixin {
         if (layout.banners.isEmpty()) {
             return true;
         }
-        int index = startIndex + getRawOffsetFromMouse(mouseX, mouseY);
+        int index = startIndex + emireorganised$offset + getRawOffsetFromMouse(mouseX, mouseY);
         return index < 0 || index >= layout.stacks.size() || !layout.stacks.get(index).isEmpty();
     }
 
@@ -71,6 +89,10 @@ public abstract class ScreenSpaceMixin {
     private void emireorganised$renderBanners(EmiDrawContext context, int mouseX, int mouseY, float delta, int startIndex,
                                               CallbackInfo ci) {
         EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        if (com.hamish.emireorganised.sidebar.IndexScroll.enabled(space.getType())) {
+            com.hamish.emireorganised.sidebar.IndexScroll.renderBar(context.raw(), space, space.getType());
+        }
+        startIndex += emireorganised$offset;
         List<? extends EmiIngredient> stacks = emireorganised$layout.stacks;
         for (int offset = 0; offset < space.pageSize && startIndex + offset < stacks.size(); offset++) {
             if (IndexBuilder.isGroupMember(stacks.get(startIndex + offset))) {

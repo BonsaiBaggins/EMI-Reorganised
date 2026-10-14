@@ -51,5 +51,22 @@
   "emi_reorganised.image.open": "Show image file",
   "emi_reorganised.image.remove": "Delete background image",
   "emi_reorganised.image.confirm_title": "Delete banner image?",
-  "emi_reorganised.image.confirm_message": "This permanently deletes %s."
+  "emi_reorganised.image.confirm_message": "This permanently deletes %s.",
+  "emi_reorganised.config.title": "EMI Reorganised",
+  "emi_reorganised.config.keybind": "Open Editor Keybind",
+  "emi_reorganised.config.keybind.tip": "Opens Controls > Key Binds, where the Open Editor key is listed under EMI Reorganised.",
+  "emi_reorganised.config.index": "Index",
+  "emi_reorganised.config.sidebarButtons": "Sidebar Roll Buttons",
+  "emi_reorganised.config.searchBar": "Search Bar",
+  "emi_reorganised.config.editor": "Tab Editor",
+  "emi_reorganised.config.openEditorButton": "Open Editor Button Visibility",
+  "emi_reorganised.open_editor": "Open EMI Reorganised Editor",
+  "emi_reorganised.editor.close": "Close",
+  "emi_reorganised.editor.swap": "Switch between the item list and the group list",
+  "emi_reorganised.editor.search_groups": "Search groups...",
+  "emi_reorganised.editor.icon": "Tab icon",
+  "emi_reorganised.editor.icon_title": "Choose a tab icon",
+  "emi_reorganised.editor.icon_tip": "Click to change the tab icon",
+  "emi_reorganised.editor.tab_name": "Tab name",
+  "emi_reorganised.editor.tab_new_title": "New tab"
 }

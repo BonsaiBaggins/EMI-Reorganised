@@ -21,11 +21,19 @@ public final class Config {
             .define("showUnsortedTab", true);
 
     public static final ModConfigSpec.BooleanValue VERTICAL_TABS = BUILDER
-            .comment("Show a column of tab buttons on the outer edge of EMI's index sidebar.").define("verticalTabs", true);
+            .comment("Show a column of tab buttons beside EMI's index.").define("verticalTabs", true);
+    public static final ModConfigSpec.EnumValue<TabSide> TAB_SIDE = BUILDER
+            .comment("Which side of the index the tabs sit on.").defineEnum("tabSide", TabSide.LEFT);
     public static final ModConfigSpec.IntValue TAB_SIZE = BUILDER
             .comment("Size of each vertical tab button.").defineInRange("tabSize", 22, 16, 40);
     public static final ModConfigSpec.IntValue TAB_SPACING = BUILDER
             .comment("Gap between vertical tab buttons.").defineInRange("tabSpacing", 1, 0, 10);
+    public static final ModConfigSpec.BooleanValue INDEX_SCROLLING = BUILDER
+            .comment("Scroll the index with a scroll bar and the mouse wheel instead of pages (no page buttons, no wrapping).")
+            .define("indexScrolling", false);
+    public static final ModConfigSpec.BooleanValue FAVOURITES_SCROLLING = BUILDER
+            .comment("Scroll the favourites sidebar with a scroll bar and the mouse wheel instead of pages.")
+            .define("favouritesScrolling", false);
 
     static {
         BUILDER.pop();
@@ -57,10 +65,18 @@ public final class Config {
     }
 
     public static final ModConfigSpec.EnumValue<SearchBarPosition> SEARCH_BAR_POSITION = BUILDER
-            .comment("Where EMI's search bar sits. ABOVE_INDEX and BELOW_INDEX attach it to the index and shrink the index to fit.")
-            .defineEnum("searchBarPosition", SearchBarPosition.DEFAULT);
+            .comment("Where EMI's search bar sits. DEFAULT is EMI's own spot (screen centre). ABOVE_INDEX and BELOW_INDEX attach it to the index and shrink the index to fit.")
+            .defineEnum("searchBarPosition", SearchBarPosition.ABOVE_INDEX);
     public static final ModConfigSpec.BooleanValue SEARCH_CLEAR_BUTTON = BUILDER
             .comment("Show an 'x' inside the search bar that clears it while it has text.").define("clearButton", true);
+
+    static {
+        BUILDER.pop();
+        BUILDER.comment("The Tab Editor.").push("editor");
+    }
+
+    public static final ModConfigSpec.EnumValue<EditorButton> EDITOR_BUTTON = BUILDER
+            .comment("When to show the Open Editor button beside the inventory.").defineEnum("openEditorButton", EditorButton.ALWAYS);
 
     static {
         BUILDER.pop();
@@ -83,6 +99,17 @@ public final class Config {
         DEFAULT,
         ABOVE_INDEX,
         BELOW_INDEX
+    }
+
+    public enum TabSide {
+        LEFT,
+        RIGHT
+    }
+
+    public enum EditorButton {
+        ALWAYS,
+        NEVER,
+        CREATIVE_ONLY
     }
 
     public enum EdgeMode {
