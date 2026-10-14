@@ -768,6 +768,35 @@ public class TabEditorScreen extends Screen {
                 }));
             }, true));
         }
+        if (cell != null && cell.kind() == Kind.BANNER) {
+            BannerDef def = ((TabEntry.Banner) cell.entry()).banner();
+            if (def.image == null) {
+                items.add(new MenuItem(Component.translatable("emi_reorganised.image.create"), () -> {
+                    try {
+                        def.image = BannerImageFiles.create(def);
+                        model.markDirty();
+                        BannerImageFiles.show(def.image);
+                    } catch (java.io.IOException e) {
+                        com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Couldn't create banner image", e);
+                    }
+                }, true));
+            } else {
+                items.add(new MenuItem(Component.translatable("emi_reorganised.image.open"), () -> BannerImageFiles.show(def.image), true));
+                items.add(new MenuItem(Component.translatable("emi_reorganised.image.remove"), () -> minecraft.setScreen(new ConfirmScreen(yes -> {
+                    if (yes && def.image != null) {
+                        try {
+                            BannerImageFiles.delete(def.image);
+                        } catch (java.io.IOException e) {
+                            com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Couldn't delete banner image", e);
+                        }
+                        def.image = null;
+                        model.markDirty();
+                    }
+                    minecraft.setScreen(this);
+                }, Component.translatable("emi_reorganised.image.confirm_title"),
+                        Component.translatable("emi_reorganised.image.confirm_message", def.image))), true));
+            }
+        }
         if (cell != null && (cell.kind() == Kind.ITEM || cell.kind() == Kind.MEMBER)) {
             ItemStack stack = cell.stack();
             items.add(new MenuItem(Component.translatable("emi_reorganised.menu.tab_icon"), () -> {

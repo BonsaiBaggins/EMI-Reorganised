@@ -46,5 +46,10 @@
   "emi_reorganised.group.regex": "Regex",
   "emi_reorganised.group.tag": "Tag",
   "emi_reorganised.group.items_hint": "%s items. Drag to reorder, right-click to remove",
-  "emi_reorganised.menu.ungroup": "Ungroup"
+  "emi_reorganised.menu.ungroup": "Ungroup",
+  "emi_reorganised.image.create": "Create background image",
+  "emi_reorganised.image.open": "Show image file",
+  "emi_reorganised.image.remove": "Delete background image",
+  "emi_reorganised.image.confirm_title": "Delete banner image?",
+  "emi_reorganised.image.confirm_message": "This permanently deletes %s."
 }
