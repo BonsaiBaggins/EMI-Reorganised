@@ -20,9 +20,6 @@ public abstract class EmiRolloutMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
     private static void simemibanners$animate(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (com.hamish.emireorganised.port.CreativeOrder.enabled() && com.hamish.emireorganised.port.CreativeOrder.refresh(false)) {
-            dev.emi.emi.screen.EmiScreenManager.recalculate();
-        }
         if (SidebarRollout.update()) {
             lastWidth = -1;
         }
