@@ -1,6 +1,7 @@
 package com.hamish.emireorganised.index;
 
 import com.hamish.emireorganised.Config;
+import com.hamish.emireorganised.data.ItemGroup;
 import com.hamish.emireorganised.data.Tab;
 import com.hamish.emireorganised.data.TabEntry;
 import com.hamish.emireorganised.data.TabState;
@@ -12,7 +13,9 @@ import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.config.SidebarType;
 import dev.emi.emi.screen.EmiScreenManager;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -26,6 +29,8 @@ import org.jetbrains.annotations.Nullable;
 public final class IndexBuilder {
     private static Object cacheKey;
     private static List<Object> cache = List.of();
+    /** Stacks shown as members of an open group (by identity), tinted in the index. */
+    private static Set<EmiIngredient> members = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private IndexBuilder() {
     }
@@ -47,7 +52,7 @@ public final class IndexBuilder {
         boolean searching = searching();
         boolean banners = !searching || Config.get(Config.SHOW_BANNERS_WHILE_SEARCHING);
         List<Object> key = List.of(TabStore.version(), Objects.toString(TabState.selected()), searching, banners,
-                System.identityHashCode(original), original.size(), BannerImages.version());
+                System.identityHashCode(original), original.size(), BannerImages.version(), GroupState.version());
         if (key.equals(cacheKey)) {
             return cache;
         }
@@ -64,6 +69,7 @@ public final class IndexBuilder {
                 allowed.addAll(ingredient.getEmiStacks());
             }
         }
+        members = Collections.newSetFromMap(new IdentityHashMap<>());
         String selected = TabState.selected();
         List<Object> out = new ArrayList<>();
         Set<EmiStack> seen = new HashSet<>();
@@ -79,11 +85,7 @@ public final class IndexBuilder {
                         }
                     }
                     case TabEntry.Item item -> add(out, seen, allowed, item.stack());
-                    case TabEntry.Group group -> {
-                        for (ItemStack stack : group.group().items) {
-                            add(out, seen, allowed, stack);
-                        }
-                    }
+                    case TabEntry.Group group -> addGroup(out, seen, allowed, searching, tab.id, group.group());
                 }
             }
         }
@@ -107,6 +109,45 @@ public final class IndexBuilder {
             trimmed.add(entry);
         }
         return trimmed;
+    }
+
+    /**
+     * Adds a group as one icon, followed by its items if it's open. Outside search a group shows all its items, even
+     * ones listed elsewhere; while searching each item only shows under the first place it appears.
+     */
+    private static void addGroup(List<Object> out, Set<EmiStack> seen, @Nullable Set<EmiStack> allowed, boolean searching,
+                                 String tabId, ItemGroup group) {
+        List<EmiStack> shown = new ArrayList<>();
+        for (ItemStack stack : group.items) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            EmiStack emi = EmiStack.of(stack);
+            if (allowed != null && !allowed.contains(emi)) {
+                continue;
+            }
+            boolean first = seen.add(emi);
+            if ((first || !searching) && !shown.contains(emi)) {
+                shown.add(emi);
+            }
+        }
+        if (shown.isEmpty()) {
+            return;
+        }
+        if (shown.size() == 1) {
+            out.add(shown.getFirst());
+            return;
+        }
+        GroupIngredient icon = new GroupIngredient(GroupState.key(tabId, group.id), group, shown);
+        out.add(icon);
+        if (icon.expanded()) {
+            out.addAll(shown);
+            members.addAll(shown);
+        }
+    }
+
+    public static boolean isGroupMember(EmiIngredient ingredient) {
+        return members.contains(ingredient);
     }
 
     private static void add(List<Object> out, Set<EmiStack> seen, @Nullable Set<EmiStack> allowed, ItemStack stack) {

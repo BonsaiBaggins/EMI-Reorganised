@@ -9,7 +9,8 @@
     "SearchBarMixin",
     "EmiRolloutMixin",
     "ScreenSpaceMixin",
-    "VerticalTabsMixin"
+    "VerticalTabsMixin",
+    "IndexGroupMixin"
   ],
   "injectors": {
     "defaultRequire": 1

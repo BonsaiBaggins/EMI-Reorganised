@@ -1,4 +1,7 @@
 {
   "emi_reorganised.tab.all": "Search All",
-  "emi_reorganised.tab.unsorted": "Unsorted"
+  "emi_reorganised.tab.unsorted": "Unsorted",
+  "emi_reorganised.group.count": "%s items",
+  "emi_reorganised.group.expand": "Click to open",
+  "emi_reorganised.group.collapse": "Click to close"
 }

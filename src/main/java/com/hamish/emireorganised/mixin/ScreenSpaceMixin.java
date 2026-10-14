@@ -70,6 +70,15 @@ public abstract class ScreenSpaceMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void emireorganised$renderBanners(EmiDrawContext context, int mouseX, int mouseY, float delta, int startIndex,
                                               CallbackInfo ci) {
+        EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        List<? extends EmiIngredient> stacks = emireorganised$layout.stacks;
+        for (int offset = 0; offset < space.pageSize && startIndex + offset < stacks.size(); offset++) {
+            if (IndexBuilder.isGroupMember(stacks.get(startIndex + offset))) {
+                int x = space.getRawX(offset);
+                int y = space.getRawY(offset);
+                context.raw().fill(x + 1, y + 1, x + 17, y + 17, 0x305C9DFF);
+            }
+        }
         BannerRenderer.render((EmiScreenManager.ScreenSpace) (Object) this, emireorganised$layout, context.raw(),
                 mouseX, mouseY, startIndex);
     }
