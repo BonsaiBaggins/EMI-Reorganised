@@ -15,5 +15,12 @@ public final class EmiReorganised {
 
     public EmiReorganised(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
+        modBus.addListener(com.hamish.emireorganised.editor.EditorKeys::register);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.hamish.emireorganised.editor.EditorKeys::tick);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
+            if (com.hamish.emireorganised.editor.EditorKeys.handleScreenKey(event.getKeyCode(), event.getScanCode())) {
+                event.setCanceled(true);
+            }
+        });
     }
 }
