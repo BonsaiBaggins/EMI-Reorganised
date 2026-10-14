@@ -52,9 +52,38 @@ public abstract class ScreenSpaceMixin {
     }
 
     @Unique
+    private List<? extends EmiIngredient> emireorganised$favSource;
+    @Unique
+    private int emireorganised$favVersion = -1;
+    @Unique
+    private int emireorganised$favSize = -1;
+    @Unique
+    private List<? extends EmiIngredient> emireorganised$favFiltered;
+
+    @Unique
+    private List<? extends EmiIngredient> emireorganised$filterFavourites(List<? extends EmiIngredient> original) {
+        if (com.hamish.emireorganised.sidebar.FavouriteSearch.query().isEmpty()) {
+            emireorganised$favSource = null;
+            return original;
+        }
+        int version = com.hamish.emireorganised.sidebar.FavouriteSearch.version();
+        if (original != emireorganised$favSource || version != emireorganised$favVersion || original.size() != emireorganised$favSize) {
+            emireorganised$favSource = original;
+            emireorganised$favVersion = version;
+            emireorganised$favSize = original.size();
+            emireorganised$favFiltered = com.hamish.emireorganised.sidebar.FavouriteSearch.filter(original);
+            batcher.repopulate();
+        }
+        return emireorganised$favFiltered;
+    }
+
+    @Unique
     private List<? extends EmiIngredient> emireorganised$fullStacks(Operation<List<? extends EmiIngredient>> operation) {
         List<? extends EmiIngredient> original = operation.call();
         EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        if (original != null && space.getType() == dev.emi.emi.config.SidebarType.FAVORITES) {
+            return emireorganised$filterFavourites(original);
+        }
         if (original == null || original == emireorganised$layout.stacks) {
             return original;
         }
@@ -94,7 +123,7 @@ public abstract class ScreenSpaceMixin {
         List<? extends EmiIngredient> stacks = emireorganised$layout.stacks;
         for (int offset = 0; offset < space.pageSize && startIndex + offset < stacks.size(); offset++) {
             EmiIngredient stack = stacks.get(startIndex + offset);
-            if (IndexBuilder.isGroupMember(stack) || stack instanceof com.hamish.emireorganised.index.GroupIngredient g && g.expanded()) {
+            if (IndexBuilder.isGroupMember(stack)) {
                 int x = space.getRawX(offset);
                 int y = space.getRawY(offset);
                 context.raw().fill(x, y, x + 18, y + 18, com.hamish.emireorganised.index.GroupIngredient.FRAME);

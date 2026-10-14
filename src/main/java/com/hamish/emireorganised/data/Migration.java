@@ -72,9 +72,18 @@ public final class Migration {
             return;
         }
         for (Tab tab : tabs) {
-            if (tab.source == null || !tab.source.getNamespace().equals("simulated")) {
-                continue;
+            if (tab.source != null && tab.source.getNamespace().equals("simulated")) {
+                addSectionBanners(tab);
             }
+        }
+    }
+
+    /** Adds a banner before the first item of each addon (Simulated) section in the tab that doesn't have one yet. */
+    public static void addSectionBanners(Tab tab) {
+        if (!SimulatedCompat.isLoaded()) {
+            return;
+        }
+        {
             Set<ResourceLocation> seen = new HashSet<>();
             for (TabEntry entry : tab.entries) {
                 if (entry instanceof TabEntry.Banner banner && banner.banner().section != null) {

@@ -98,6 +98,7 @@ public final class EditorModel {
             var level = net.minecraft.client.Minecraft.getInstance().level;
             if (level != null) {
                 creative.addAll(TabStore.snapshot(level.registryAccess()));
+                creative.forEach(com.hamish.emireorganised.data.Migration::addSectionBanners);
             }
         }
         creativeMode = on;
@@ -120,7 +121,7 @@ public final class EditorModel {
         Tab t = new Tab(uniqueTabId(tabClipboard.name), tabClipboard.name);
         t.icon = tabClipboard.icon.copy();
         for (TabEntry e : tabClipboard.entries) {
-            t.entries.add(e instanceof TabEntry.Group g ? new TabEntry.Group(g.group().copy(uniqueGroupId(g.group().name))) : e.copy());
+            t.entries.add(e instanceof TabEntry.Group g ? new TabEntry.Group(g.group().copy(uniqueGroupId(g.group().name))) : own(e.copy()));
         }
         tabs.add(Math.min(tab + 1, tabs.size()), t);
         tab = tabs.indexOf(t);
@@ -399,7 +400,7 @@ public final class EditorModel {
         }
         List<TabEntry> entries = entries();
         int at = selection.isEmpty() ? entries.size() : sortedSelection().getLast().entry() + 1;
-        List<TabEntry> copies = clipboard.stream().map(TabEntry::copy).toList();
+        List<TabEntry> copies = clipboard.stream().map(TabEntry::copy).map(EditorModel::own).toList();
         insert(at, copies);
     }
 
@@ -479,6 +480,31 @@ public final class EditorModel {
         }
         int at = anchor != null && entries.contains(anchor) ? entries.indexOf(anchor) : entry - before;
         insert(at, moved);
+    }
+
+    /** The single stack a selection ref points at, or null for a whole group or banner. */
+    @Nullable
+    public ItemStack stackAt(Ref ref) {
+        List<TabEntry> entries = entries();
+        if (ref.entry() < 0 || ref.entry() >= entries.size()) {
+            return null;
+        }
+        TabEntry e = entries.get(ref.entry());
+        if (e instanceof TabEntry.Item item) {
+            return item.stack();
+        }
+        if (ref.isMember() && e instanceof TabEntry.Group g && ref.member() < g.group().items.size()) {
+            return g.group().items.get(ref.member());
+        }
+        return null;
+    }
+
+    /** Banners linked to an addon section (e.g. from a creative tab) become our own banners when pasted. */
+    private static TabEntry own(TabEntry e) {
+        if (e instanceof TabEntry.Banner b && b.banner().section != null) {
+            return new TabEntry.Banner(BannerImageFiles.fromSection(b.banner()));
+        }
+        return e;
     }
 
     public ItemGroup newGroup(String id, String name) {

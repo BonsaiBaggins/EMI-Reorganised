@@ -34,6 +34,14 @@ public final class Config {
     public static final ModConfigSpec.BooleanValue FAVOURITES_SCROLLING = BUILDER
             .comment("Scroll the favourites sidebar with a scroll bar and the mouse wheel instead of pages.")
             .define("favouritesScrolling", true);
+    public static final ModConfigSpec.BooleanValue FAVOURITE_TABS = BUILDER
+            .comment("Show tabs beside the favourites sidebar, each holding its own list of favourites.")
+            .define("favouriteTabs", true);
+    public static final ModConfigSpec.EnumValue<TabSide> FAVOURITE_TAB_SIDE = BUILDER
+            .comment("Which side of the favourites sidebar its tabs sit on.").defineEnum("favouriteTabSide", TabSide.RIGHT);
+    public static final ModConfigSpec.BooleanValue FAVOURITE_SEARCH = BUILDER
+            .comment("Replace the favourites sidebar's header with a search bar that filters the favourites.")
+            .define("favouriteSearch", true);
     public static final ModConfigSpec.EnumValue<ScrollbarStyle> SCROLLBAR_STYLE = BUILDER
             .comment("Scroll bar look: NARROW, VANILLA_CREATIVE, or NARROW_CREATIVE (a half-width creative bar).")
             .defineEnum("scrollbarStyle", ScrollbarStyle.NARROW);

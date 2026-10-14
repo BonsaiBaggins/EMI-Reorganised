@@ -71,8 +71,11 @@ public class TabEditorScreen extends Screen {
     private static final ResourceLocation[] BANNER_ICONS = {
             ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/image.png"),
             ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/palette.png"),
-            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/folder.png")};
-    private static final String[] BANNER_TIPS = {"emi_reorganised.image.button", "emi_reorganised.colors.tip", "emi_reorganised.image.folder"};
+            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/folder.png"),
+            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/crown.png")};
+    private static final ResourceLocation CROWN_OFF = ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/crown_off.png");
+    private static final String[] BANNER_TIPS = {"emi_reorganised.image.button", "emi_reorganised.colors.tip", "emi_reorganised.image.folder",
+            "emi_reorganised.image.favourite"};
     /** The last thing copied was a tab rather than items. */
     private boolean clipboardTab;
     private int pressTab = -1;
@@ -207,7 +210,7 @@ public class TabEditorScreen extends Screen {
             tabScroll = 0;
             gridScroll = 0;
             refreshName();
-        }).bounds(LEFT_W - 20, TOP - 1, 20, 20).build();
+        }).bounds(4, TOP - 1, 20, 20).build();
         tabSwap.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.tab_swap")));
         addRenderableWidget(tabSwap);
 
@@ -491,7 +494,7 @@ public class TabEditorScreen extends Screen {
         graphics.fill(gridX() - 3, gridY() - 3, gridX() + gridCols() * SLOT + 3, height - 2 - BOTTOM_BAR, 0xC0101010);
         graphics.fill(paletteX() - 2, TOP - 2, width - 2, height - 2, 0xC0101010);
         graphics.drawString(font, Component.translatable(model.creativeMode ? "emi_reorganised.editor.header.creative"
-                : "emi_reorganised.editor.header.tabs"), 8, TOP + 5, 0xFFFFFF);
+                : "emi_reorganised.editor.header.tabs"), 28, TOP + 5, 0xFFFFFF);
         graphics.drawString(font, Component.translatable(groupMode ? "emi_reorganised.editor.header.groups"
                 : "emi_reorganised.editor.header.items"), paletteX() + 2, TOP + 5, 0xFFFFFF);
         renderTabs(graphics, mouseX, mouseY);
@@ -554,9 +557,10 @@ public class TabEditorScreen extends Screen {
                 }
                 if (!model.creativeMode) {
                     int hoveredButton = bannerButtonAt(cell, mouseX, mouseY);
-                    for (int b = 0; b < (def.image != null ? 3 : 2); b++) {
+                    for (int b = 0; b < (def.image != null ? 4 : 2); b++) {
                         int bx = bannerButtonX(cell, b);
-                        graphics.blit(BANNER_ICONS[b], bx, y + 1, 0, 0, 16, 16, 16, 16);
+                        ResourceLocation icon = b == 3 && !BannerFavourites.contains(def.image) ? CROWN_OFF : BANNER_ICONS[b];
+                        graphics.blit(icon, bx, y + 1, 0, 0, 16, 16, 16, 16);
                         if (hoveredButton == b) {
                             graphics.fill(bx, y + 1, bx + 16, y + 17, 0x40FFFFFF);
                         }
@@ -839,7 +843,8 @@ public class TabEditorScreen extends Screen {
                     switch (b) {
                         case 0 -> openBackground(def);
                         case 1 -> openBannerColors(def);
-                        default -> BannerImageFiles.show(def.image);
+                        case 2 -> BannerImageFiles.show(def.image);
+                        default -> BannerFavourites.toggle(def.image);
                     }
                     return true;
                 }
@@ -903,13 +908,13 @@ public class TabEditorScreen extends Screen {
         return cell.x() + cell.w() - 17 - 17 * button;
     }
 
-    /** 0 = image, 1 = colours, 2 = folder (only with an image), or -1. */
+    /** 0 = image, 1 = colours, 2 = folder, 3 = favourite (2 and 3 only with an image), or -1. */
     private int bannerButtonAt(Cell cell, double mx, double my) {
         if (my < cell.y() + 1 || my >= cell.y() + 17) {
             return -1;
         }
         BannerDef def = ((TabEntry.Banner) cell.entry()).banner();
-        for (int b = 0; b < (def.image != null ? 3 : 2); b++) {
+        for (int b = 0; b < (def.image != null ? 4 : 2); b++) {
             int bx = bannerButtonX(cell, b);
             if (mx >= bx && mx < bx + 16) {
                 return b;
@@ -1301,7 +1306,13 @@ public class TabEditorScreen extends Screen {
         stacks.forEach(s -> draft.items.add(s.copy()));
         minecraft.setScreen(new GroupEditScreen(this, Component.translatable("emi_reorganised.group.new"), draft, () -> {
             String name = draft.name.isBlank() ? "Group" : draft.name;
-            ItemGroup group = fromSelection ? model.newGroup(model.uniqueGroupId(name), name) : model.newEmptyGroup(name);
+            // Selected items taken out in the popup aren't grouped: they stay where they are in the tab.
+            model.selection.removeIf(ref -> {
+                ItemStack stack = model.stackAt(ref);
+                return stack != null && draft.items.stream().noneMatch(d -> ItemStack.isSameItemSameComponents(d, stack));
+            });
+            ItemGroup group = fromSelection && !model.selection.isEmpty()
+                    ? model.newGroup(model.uniqueGroupId(name), name) : model.newEmptyGroup(name);
             group.regex = draft.regex;
             group.tag = draft.tag;
             group.items.clear();

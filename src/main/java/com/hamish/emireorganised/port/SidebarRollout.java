@@ -129,7 +129,9 @@ public final class SidebarRollout {
         EmiScreenManager.SidebarPanel panel = EmiScreenManager.getPanelFor(i == LEFT ? SidebarSide.LEFT : SidebarSide.RIGHT);
         Bounds bounds = panel != null && panel.space != null && panel.isVisible() ? panel.getBounds() : null;
         if (bounds != null) {
-            bounds = com.hamish.emireorganised.port.SidebarExtras.withTabBar(bounds);
+            // The frame grows to the right for a scroll bar; EMI's bounds don't include that.
+            bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() + com.hamish.emireorganised.sidebar.IndexScroll.extraWidth(panel.getType()), bounds.height());
+            bounds = com.hamish.emireorganised.port.SidebarExtras.withTabBar(panel, bounds);
         }
         if (bounds != null && bounds.height() > 0 && progress[i] >= 1) {
             lastShownBounds[i] = bounds;
@@ -206,7 +208,10 @@ public final class SidebarRollout {
             lines.add(page.type.getText().copy().withStyle(page.type == current && panel.pages.pages.size() > 1
                     ? net.minecraft.ChatFormatting.WHITE : net.minecraft.ChatFormatting.GRAY));
         }
-        graphics.renderComponentTooltip(Minecraft.getInstance().font, lines, mouseX, mouseY);
+        // EMI's own tooltip renderer: vanilla's draws an empty box at this point of EMI's render.
+        dev.emi.emi.EmiRenderHelper.drawTooltip(Minecraft.getInstance().screen, dev.emi.emi.runtime.EmiDrawContext.wrap(graphics),
+                lines.stream().map(l -> net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent.create(l.getVisualOrderText())).toList(),
+                mouseX, mouseY);
     }
 
     public static boolean click(double mouseX, double mouseY, int button) {

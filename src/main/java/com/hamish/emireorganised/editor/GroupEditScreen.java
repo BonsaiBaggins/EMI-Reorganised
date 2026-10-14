@@ -107,7 +107,6 @@ public class GroupEditScreen extends EditorPopup {
         name.setValue(target.name);
         sourceButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleSource())
                 .bounds(left() + 10, y + 22, W - 20, 18).build());
-        sourceButton.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.source.tip")));
         pattern = addRenderableWidget(new EditBox(font, x, y + 44, W - 70, 16, Component.empty()));
         pattern.setMaxLength(256);
         pattern.setResponder(v -> {
@@ -135,8 +134,11 @@ public class GroupEditScreen extends EditorPopup {
     }
 
     private void applySource() {
-        sourceButton.setMessage(Component.translatable("emi_reorganised.group.source",
-                Component.translatable("emi_reorganised.group.source." + source.name().toLowerCase(Locale.ROOT))));
+        String type = source == Source.NONE ? "list" : source.name().toLowerCase(Locale.ROOT);
+        Component typeName = Component.translatable("emi_reorganised.group.source." + type);
+        sourceButton.setMessage(Component.translatable("emi_reorganised.group.source", typeName));
+        sourceButton.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.source.tip", typeName)
+                .append("\n").append(Component.translatable("emi_reorganised.group.source." + type + ".desc").withStyle(ChatFormatting.GRAY))));
         pattern.visible = source != Source.NONE;
         fillButton.active = source != Source.NONE;
         if (source == Source.REGEX) {
@@ -254,6 +256,7 @@ public class GroupEditScreen extends EditorPopup {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        fillButton.setMessage(Component.translatable(items.isEmpty() ? "emi_reorganised.group.populate" : "emi_reorganised.group.fill"));
         super.render(graphics, mouseX, mouseY, partialTick);
         int l = left();
         int t = top();

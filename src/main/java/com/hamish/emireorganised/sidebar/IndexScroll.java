@@ -13,6 +13,8 @@ import org.jetbrains.annotations.Nullable;
 /** Row-by-row scrolling (with a scroll bar) for the index and favourites sidebars, replacing EMI's pages. */
 public final class IndexScroll {
     private static final int BAR_W = 3;
+    /** Distance from the right edge of the item grid to the bar: the frame's bevel line plus a grey gap. */
+    private static final int BAR_INSET = 4;
     private static final Map<SidebarType, Integer> ROWS = new EnumMap<>(SidebarType.class);
     private static final Map<SidebarType, Integer> MAX = new EnumMap<>(SidebarType.class);
     private static final Map<SidebarType, Bounds> BARS = new EnumMap<>(SidebarType.class);
@@ -41,7 +43,7 @@ public final class IndexScroll {
         if (!enabled(type)) {
             return 0;
         }
-        return style() == Config.ScrollbarStyle.NARROW ? 0 : trackWidth();
+        return BAR_INSET - 1 + trackWidth();
     }
 
     public static boolean enabled(@Nullable SidebarType type) {
@@ -91,7 +93,7 @@ public final class IndexScroll {
         }
         boolean narrow = style() == Config.ScrollbarStyle.NARROW;
         int tw = trackWidth();
-        int x = space.tx + space.tw * 18 + (narrow ? 1 : 2);
+        int x = space.tx + space.tw * 18 + BAR_INSET;
         int top = space.ty;
         int h = space.th * 18;
         BARS.put(type, new Bounds(x - 1, top, tw + 2, h));
