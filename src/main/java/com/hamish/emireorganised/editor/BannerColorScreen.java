@@ -13,14 +13,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
 /** Picks a banner's two title colours and its two fallback background gradient colours. */
-public class BannerColorScreen extends Screen {
+public class BannerColorScreen extends EditorPopup {
     private static final String[] KEYS = {"title", "secondary", "background", "fill_left", "fill_right"};
     private static final int W = 260;
     private static final int H = 196;
     private static final int SV_W = 120;
     private static final int SV_H = 60;
 
-    private final Screen parent;
     private final BannerView base;
     private final Consumer<BannerDef.Colors> onDone;
     private final Integer[] values = new Integer[5];
@@ -36,8 +35,7 @@ public class BannerColorScreen extends Screen {
 
     /** {@code base} is the banner drawn with default colours. */
     public BannerColorScreen(Screen parent, BannerView base, BannerDef.Colors current, Consumer<BannerDef.Colors> onDone) {
-        super(Component.translatable("emi_reorganised.colors"));
-        this.parent = parent;
+        super(parent, Component.translatable("emi_reorganised.colors"));
         this.onDone = onDone;
         this.base = base;
         this.defaults = new int[] {base.color(), base.secondaryColor(), base.titleBackground(), base.fillLeft(), base.fillRight()};
@@ -46,6 +44,26 @@ public class BannerColorScreen extends Screen {
         values[2] = current.titleBackground();
         values[3] = current.left();
         values[4] = current.right();
+    }
+
+    @Override
+    protected int panelX() {
+        return left();
+    }
+
+    @Override
+    protected int panelY() {
+        return top();
+    }
+
+    @Override
+    protected int panelW() {
+        return W;
+    }
+
+    @Override
+    protected int panelH() {
+        return H;
     }
 
     private int left() {

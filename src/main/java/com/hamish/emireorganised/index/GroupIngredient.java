@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 
 /** An item group's icon in EMI's index. Clicking it opens or closes the group; its stacks are the group's items. */
 public final class GroupIngredient implements EmiIngredient {
-    private static final int FRAME = 0xFF5E5E5E;
+    public static final int FRAME = 0xFF5E5E5E;
 
     public final String key;
     public final ItemGroup group;
@@ -92,7 +92,9 @@ public final class GroupIngredient implements EmiIngredient {
         return ClientTooltipComponent.create(text.getVisualOrderText());
     }
 
-    /** Up to three of the group's items, stacked back to front with a small diagonal offset. */
+    private static final float[] SHADES = {1.0F, 0.72F, 0.5F};
+
+    /** Up to three of the group's items: the first in front at the left, later ones further right, behind and darker. */
     private void renderCascade(GuiGraphics graphics, int x, int y) {
         List<ItemStack> layers = new java.util.ArrayList<>();
         layers.add(icon);
@@ -114,9 +116,13 @@ public final class GroupIngredient implements EmiIngredient {
         var pose = graphics.pose();
         for (int i = layers.size() - 1; i >= 0; i--) {
             pose.pushPose();
-            pose.translate(x + step * (layers.size() - 1 - i), y + step * i, (layers.size() - 1 - i) * 40);
+            pose.translate(x + step * i, y + step * (layers.size() - 1 - i), (layers.size() - 1 - i) * 40);
             pose.scale(scale, scale, scale);
+            float shade = SHADES[i];
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(shade, shade, shade, 1.0F);
             graphics.renderItem(layers.get(i), 0, 0);
+            graphics.flush();
+            com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             pose.popPose();
         }
     }

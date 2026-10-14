@@ -36,9 +36,12 @@ public final class IndexScroll {
         };
     }
 
-    /** Width a scrolling panel needs beyond EMI's normal frame padding to fit the bar. */
+    /** Width a scrolling panel needs beyond EMI's normal frame padding to fit the bar (and, for the creative styles, a frame margin around it). */
     public static int extraWidth(@Nullable SidebarType type) {
-        return enabled(type) ? Math.max(0, trackWidth() - 3) : 0;
+        if (!enabled(type)) {
+            return 0;
+        }
+        return style() == Config.ScrollbarStyle.NARROW ? 0 : trackWidth();
     }
 
     public static boolean enabled(@Nullable SidebarType type) {

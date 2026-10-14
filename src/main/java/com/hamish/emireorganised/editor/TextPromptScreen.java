@@ -8,17 +8,35 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /** A small popup asking for one line of text. */
-public class TextPromptScreen extends Screen {
-    private final Screen parent;
+public class TextPromptScreen extends EditorPopup {
     private final String initial;
     private final Consumer<String> onDone;
     private EditBox box;
 
     public TextPromptScreen(Screen parent, Component title, String initial, Consumer<String> onDone) {
-        super(title);
-        this.parent = parent;
+        super(parent, title);
         this.initial = initial;
         this.onDone = onDone;
+    }
+
+    @Override
+    protected int panelX() {
+        return width / 2 - 110;
+    }
+
+    @Override
+    protected int panelY() {
+        return height / 2 - 46;
+    }
+
+    @Override
+    protected int panelW() {
+        return 220;
+    }
+
+    @Override
+    protected int panelH() {
+        return 84;
     }
 
     @Override
@@ -55,10 +73,5 @@ public class TextPromptScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, height / 2 - 36, 0xFFFFFF);
-    }
-
-    @Override
-    public void onClose() {
-        minecraft.setScreen(parent);
     }
 }

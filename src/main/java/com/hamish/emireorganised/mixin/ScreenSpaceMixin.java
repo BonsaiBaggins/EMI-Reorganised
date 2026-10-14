@@ -85,6 +85,23 @@ public abstract class ScreenSpaceMixin {
         return index < 0 || index >= layout.stacks.size() || !layout.stacks.get(index).isEmpty();
     }
 
+    /** Open groups get one continuous grey band behind their icon and items. */
+    @Inject(method = "render", at = @At("HEAD"))
+    private void emireorganised$renderGroupBands(EmiDrawContext context, int mouseX, int mouseY, float delta, int startIndex,
+                                                 CallbackInfo ci) {
+        EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        startIndex += emireorganised$offset;
+        List<? extends EmiIngredient> stacks = emireorganised$layout.stacks;
+        for (int offset = 0; offset < space.pageSize && startIndex + offset < stacks.size(); offset++) {
+            EmiIngredient stack = stacks.get(startIndex + offset);
+            if (IndexBuilder.isGroupMember(stack) || stack instanceof com.hamish.emireorganised.index.GroupIngredient g && g.expanded()) {
+                int x = space.getRawX(offset);
+                int y = space.getRawY(offset);
+                context.raw().fill(x, y, x + 18, y + 18, com.hamish.emireorganised.index.GroupIngredient.FRAME);
+            }
+        }
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void emireorganised$renderBanners(EmiDrawContext context, int mouseX, int mouseY, float delta, int startIndex,
                                               CallbackInfo ci) {
@@ -93,14 +110,6 @@ public abstract class ScreenSpaceMixin {
             com.hamish.emireorganised.sidebar.IndexScroll.renderBar(context.raw(), space, space.getType());
         }
         startIndex += emireorganised$offset;
-        List<? extends EmiIngredient> stacks = emireorganised$layout.stacks;
-        for (int offset = 0; offset < space.pageSize && startIndex + offset < stacks.size(); offset++) {
-            if (IndexBuilder.isGroupMember(stacks.get(startIndex + offset))) {
-                int x = space.getRawX(offset);
-                int y = space.getRawY(offset);
-                context.raw().fill(x + 1, y + 1, x + 17, y + 17, 0x305C9DFF);
-            }
-        }
         BannerRenderer.render((EmiScreenManager.ScreenSpace) (Object) this, emireorganised$layout, context.raw(),
                 mouseX, mouseY, startIndex);
     }

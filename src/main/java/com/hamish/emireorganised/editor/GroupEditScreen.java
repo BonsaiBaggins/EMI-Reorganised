@@ -10,6 +10,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -21,31 +22,64 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /** Edits a group's name, its optional regex/tag, and its item list (drag to reorder, right-click to remove). */
-public class GroupEditScreen extends Screen {
+public class GroupEditScreen extends EditorPopup {
     private static final int W = 300;
-    private static final int H = 230;
+    private static final int H = 240;
     private static final int SLOT = 18;
     private static final int COLS = 15;
     private static final int ROWS = 5;
 
-    private final Screen parent;
     private final ItemGroup target;
     private final Runnable onDone;
+    private final boolean allowEmpty;
     private final List<ItemStack> items = new ArrayList<>();
     private EditBox name;
-    private EditBox regex;
-    private EditBox tag;
+    private enum Source { NONE, REGEX, TAG }
+
+    private Source source;
+    private String regexValue;
+    private String tagValue;
+    private EditBox pattern;
+    private Button sourceButton;
+    private Button fillButton;
     private List<TagKey<Item>> tagMatches = List.of();
     private int scroll;
     private int dragFrom = -1;
     private boolean dragging;
 
     public GroupEditScreen(Screen parent, ItemGroup group, Runnable onDone) {
-        super(Component.translatable("emi_reorganised.group.edit"));
-        this.parent = parent;
+        this(parent, Component.translatable("emi_reorganised.group.edit"), group, onDone);
+    }
+
+    public GroupEditScreen(Screen parent, Component title, ItemGroup group, Runnable onDone) {
+        super(parent, title);
         this.target = group;
         this.onDone = onDone;
+        this.allowEmpty = group.items.isEmpty();
         group.items.forEach(s -> items.add(s.copy()));
+        regexValue = group.regex != null ? group.regex : "";
+        tagValue = group.tag != null ? group.tag : "";
+        source = group.regex != null ? Source.REGEX : group.tag != null ? Source.TAG : Source.NONE;
+    }
+
+    @Override
+    protected int panelX() {
+        return left();
+    }
+
+    @Override
+    protected int panelY() {
+        return top();
+    }
+
+    @Override
+    protected int panelW() {
+        return W;
+    }
+
+    @Override
+    protected int panelH() {
+        return H;
     }
 
     private int left() {
@@ -61,7 +95,7 @@ public class GroupEditScreen extends Screen {
     }
 
     private int gridY() {
-        return top() + 112;
+        return top() + 124;
     }
 
     @Override
@@ -71,19 +105,23 @@ public class GroupEditScreen extends Screen {
         name = addRenderableWidget(new EditBox(font, x, y, W - 70, 16, Component.empty()));
         name.setMaxLength(64);
         name.setValue(target.name);
-        regex = addRenderableWidget(new EditBox(font, x, y + 22, W - 120, 16, Component.empty()));
-        regex.setMaxLength(256);
-        regex.setValue(target.regex != null ? target.regex : "");
-        regex.setHint(Component.literal("minecraft:.*_log").withStyle(ChatFormatting.DARK_GRAY));
-        addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.group.fill"), b -> fillRegex())
-                .bounds(left() + W - 56, y + 21, 46, 18).build());
-        tag = addRenderableWidget(new EditBox(font, x, y + 44, W - 120, 16, Component.empty()));
-        tag.setMaxLength(256);
-        tag.setValue(target.tag != null ? target.tag : "");
-        tag.setHint(Component.literal("minecraft:logs").withStyle(ChatFormatting.DARK_GRAY));
-        tag.setResponder(v -> updateTagMatches());
-        addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.group.fill"), b -> fillTag())
-                .bounds(left() + W - 56, y + 43, 46, 18).build());
+        sourceButton = addRenderableWidget(Button.builder(Component.empty(), b -> cycleSource())
+                .bounds(left() + 10, y + 22, W - 20, 18).build());
+        sourceButton.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.source.tip")));
+        pattern = addRenderableWidget(new EditBox(font, x, y + 44, W - 70, 16, Component.empty()));
+        pattern.setMaxLength(256);
+        pattern.setResponder(v -> {
+            if (source == Source.REGEX) {
+                regexValue = v;
+            } else if (source == Source.TAG) {
+                tagValue = v;
+            }
+            updateTagMatches();
+        });
+        fillButton = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.group.fill"), b -> fill())
+                .bounds(left() + W - 120, y + 64, 110, 18).build());
+        fillButton.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.fill.tip")));
+        applySource();
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(left() + W / 2 - 104, top() + H - 26, 100, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> done())
@@ -91,22 +129,68 @@ public class GroupEditScreen extends Screen {
         updateTagMatches();
     }
 
+    private void cycleSource() {
+        source = Source.values()[(source.ordinal() + 1) % Source.values().length];
+        applySource();
+    }
+
+    private void applySource() {
+        sourceButton.setMessage(Component.translatable("emi_reorganised.group.source",
+                Component.translatable("emi_reorganised.group.source." + source.name().toLowerCase(Locale.ROOT))));
+        pattern.visible = source != Source.NONE;
+        fillButton.active = source != Source.NONE;
+        if (source == Source.REGEX) {
+            pattern.setValue(regexValue);
+            pattern.setHint(Component.literal("minecraft:.*_log").withStyle(ChatFormatting.DARK_GRAY));
+            pattern.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.regex_help")));
+        } else if (source == Source.TAG) {
+            pattern.setValue(tagValue);
+            pattern.setHint(Component.literal("minecraft:logs").withStyle(ChatFormatting.DARK_GRAY));
+            pattern.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.tag_help")));
+        } else {
+            pattern.setFocused(false);
+        }
+        updateTagMatches();
+    }
+
+    private boolean regexValid() {
+        try {
+            Pattern.compile(regexValue.trim());
+            return true;
+        } catch (PatternSyntaxException e) {
+            return false;
+        }
+    }
+
     private void updateTagMatches() {
-        String q = tag.getValue().trim().toLowerCase(Locale.ROOT);
-        if (q.isEmpty() || !tag.isFocused()) {
+        if (source != Source.TAG || !pattern.isFocused()) {
             tagMatches = List.of();
             return;
         }
+        String q = pattern.getValue().trim().replaceFirst("^#", "").toLowerCase(Locale.ROOT);
         tagMatches = BuiltInRegistries.ITEM.getTagNames()
                 .filter(t -> t.location().toString().contains(q))
-                .sorted((a, b) -> a.location().toString().compareTo(b.location().toString()))
-                .limit(6).toList();
+                .filter(t -> !t.location().toString().equals(q))
+                .sorted((a, b) -> {
+                    boolean pa = a.location().getPath().startsWith(q) || a.location().toString().startsWith(q);
+                    boolean pb = b.location().getPath().startsWith(q) || b.location().toString().startsWith(q);
+                    return pa != pb ? (pa ? -1 : 1) : a.location().toString().compareTo(b.location().toString());
+                })
+                .limit(8).toList();
+    }
+
+    private void fill() {
+        if (source == Source.REGEX) {
+            fillRegex();
+        } else if (source == Source.TAG) {
+            fillTag();
+        }
     }
 
     private void fillRegex() {
         Pattern pattern;
         try {
-            pattern = Pattern.compile(regex.getValue().trim());
+            pattern = Pattern.compile(regexValue.trim());
         } catch (PatternSyntaxException e) {
             return;
         }
@@ -124,7 +208,7 @@ public class GroupEditScreen extends Screen {
     }
 
     private void fillTag() {
-        ResourceLocation id = ResourceLocation.tryParse(tag.getValue().trim().replaceFirst("^#", ""));
+        ResourceLocation id = ResourceLocation.tryParse(tagValue.trim().replaceFirst("^#", ""));
         if (id == null) {
             return;
         }
@@ -143,21 +227,17 @@ public class GroupEditScreen extends Screen {
 
     private void done() {
         if (items.isEmpty()) {
-            if (!regex.getValue().isBlank()) {
-                fillRegex();
-            } else if (!tag.getValue().isBlank()) {
-                fillTag();
-            }
+            fill();
         }
-        if (items.isEmpty()) {
+        if (items.isEmpty() && !allowEmpty) {
             return;
         }
         String n = name.getValue().trim();
         if (!n.isEmpty()) {
             target.name = n;
         }
-        target.regex = regex.getValue().isBlank() ? null : regex.getValue().trim();
-        target.tag = tag.getValue().isBlank() ? null : tag.getValue().trim().replaceFirst("^#", "");
+        target.regex = source == Source.REGEX && !regexValue.isBlank() ? regexValue.trim() : null;
+        target.tag = source == Source.TAG && !tagValue.isBlank() ? tagValue.trim().replaceFirst("^#", "") : null;
         target.items.clear();
         target.items.addAll(items);
         minecraft.setScreen(parent);
@@ -179,8 +259,11 @@ public class GroupEditScreen extends Screen {
         int t = top();
         graphics.drawCenteredString(font, title, width / 2, t + 6, 0xFFFFFF);
         graphics.drawString(font, Component.translatable("emi_reorganised.group.name"), l + 10, t + 24, 0xFFFFFF);
-        graphics.drawString(font, Component.translatable("emi_reorganised.group.regex"), l + 10, t + 46, 0xFFFFFF);
-        graphics.drawString(font, Component.translatable("emi_reorganised.group.tag"), l + 10, t + 68, 0xFFFFFF);
+        if (source != Source.NONE) {
+            boolean bad = source == Source.REGEX && !regexValid();
+            graphics.drawString(font, Component.translatable(source == Source.REGEX ? "emi_reorganised.group.regex" : "emi_reorganised.group.tag"),
+                    l + 10, t + 68, bad ? 0xFF5555 : 0xFFFFFF);
+        }
         graphics.drawString(font, Component.translatable("emi_reorganised.group.items_hint", items.size())
                 .withStyle(ChatFormatting.GRAY), l + 10, gridY() - 12, 0xFFFFFF);
         int gx = gridX();
@@ -214,16 +297,22 @@ public class GroupEditScreen extends Screen {
             graphics.renderItem(items.get(dragFrom), mouseX - 8, mouseY - 8);
             graphics.pose().popPose();
         }
-        if (!tagMatches.isEmpty()) {
-            int x = tag.getX();
-            int y = tag.getY() + 18;
+        if (source == Source.TAG && pattern.isFocused()) {
+            int x = pattern.getX();
+            int y = pattern.getY() + 18;
+            int w = pattern.getWidth();
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 400);
-            graphics.fill(x, y, x + tag.getWidth(), y + tagMatches.size() * 11 + 2, 0xF0000000);
+            int rows = Math.max(1, tagMatches.size());
+            graphics.fill(x, y, x + w, y + rows * 11 + 2, 0xF0000000);
+            graphics.renderOutline(x, y, w, rows * 11 + 2, 0xFF505050);
+            if (tagMatches.isEmpty()) {
+                graphics.drawString(font, Component.translatable("emi_reorganised.group.no_tags"), x + 2, y + 2, 0x808080);
+            }
             for (int i = 0; i < tagMatches.size(); i++) {
                 int ry = y + 1 + i * 11;
-                boolean hover = mouseX >= x && mouseX < x + tag.getWidth() && mouseY >= ry && mouseY < ry + 11;
-                graphics.drawString(font, font.plainSubstrByWidth(tagMatches.get(i).location().toString(), tag.getWidth() - 4),
+                boolean hover = mouseX >= x && mouseX < x + w && mouseY >= ry && mouseY < ry + 11;
+                graphics.drawString(font, font.plainSubstrByWidth("#" + tagMatches.get(i).location(), w - 4),
                         x + 2, ry + 1, hover ? 0xFFFF55 : 0xDDDDDD);
             }
             graphics.pose().popPose();
@@ -236,19 +325,14 @@ public class GroupEditScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(left(), top(), left() + W, top() + H, 0xF0202020);
-        graphics.renderOutline(left(), top(), W, H, 0xFF808080);
-    }
-
-    @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (!tagMatches.isEmpty()) {
-            int x = tag.getX();
-            int y = tag.getY() + 19;
-            if (mx >= x && mx < x + tag.getWidth() && my >= y && my < y + tagMatches.size() * 11) {
-                tag.setValue(tagMatches.get((int) ((my - y) / 11)).location().toString());
+            int x = pattern.getX();
+            int y = pattern.getY() + 19;
+            if (mx >= x && mx < x + pattern.getWidth() && my >= y && my < y + tagMatches.size() * 11) {
+                pattern.setValue(tagMatches.get((int) ((my - y) / 11)).location().toString());
+                pattern.setFocused(false);
+                setFocused(null);
                 tagMatches = List.of();
                 return true;
             }

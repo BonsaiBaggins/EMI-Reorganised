@@ -18,11 +18,10 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /** Popup for a tab's name (optional) and icon, with a searchable item grid to pick the icon from. */
-public class IconPickerScreen extends Screen {
+public class IconPickerScreen extends EditorPopup {
     private static final int SLOT = 18;
     private static final int COLS = 11;
     private static final int ROWS = 5;
-    private final Screen parent;
     @Nullable private final String initialName;
     private final BiConsumer<String, ItemStack> onDone;
     private ItemStack icon;
@@ -35,11 +34,30 @@ public class IconPickerScreen extends Screen {
     /** {@code initialName} null hides the name field (icon only). */
     public IconPickerScreen(Screen parent, Component title, @Nullable String initialName, ItemStack icon,
                             BiConsumer<String, ItemStack> onDone) {
-        super(title);
-        this.parent = parent;
+        super(parent, title);
         this.initialName = initialName;
         this.icon = icon.copy();
         this.onDone = onDone;
+    }
+
+    @Override
+    protected int panelX() {
+        return left() - 8;
+    }
+
+    @Override
+    protected int panelY() {
+        return top() - 8;
+    }
+
+    @Override
+    protected int panelW() {
+        return COLS * SLOT + 16;
+    }
+
+    @Override
+    protected int panelH() {
+        return gridY() + ROWS * SLOT + 34 - top();
     }
 
     private int left() {

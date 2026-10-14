@@ -131,7 +131,7 @@ public final class VerticalTabs {
             edgeLeft = panel.space.tx - 9;
             edgeRight = panel.space.tx + panel.space.tw * 18 + 9 + IndexScroll.extraWidth(panel.getType());
         }
-        int x = (left ? edgeLeft - w + OVERLAP : edgeRight - OVERLAP) + slideOffset;
+        int x = (left ? edgeLeft - w + OVERLAP : edgeRight - OVERLAP) + 1 + slideOffset;
         int top = bounds.y() + OVERLAP;
         int step = s + spacing();
         List<Entry> entries = entries();
@@ -182,8 +182,10 @@ public final class VerticalTabs {
             }
         }
         if (scrolling) {
-            graphics.blitSprite(SCROLL_UP, x + w / 2 - 16, top - 6, 32, 32);
-            graphics.blitSprite(SCROLL_DOWN, x + w / 2 - 16, top + bounds.height() - 26, 32, 32);
+            // The arrow sits in the right half of the 32px sprite: centre that half on the tabs.
+            int ax = (left ? x + w - depth() / 2 : x + depth() / 2) - 24;
+            graphics.blitSprite(SCROLL_UP, ax, top - 6, 32, 32);
+            graphics.blitSprite(SCROLL_DOWN, ax, top + bounds.height() - 26, 32, 32);
         }
         if (hovered != null) {
             graphics.renderTooltip(Minecraft.getInstance().font, hovered.name(), mouseX, mouseY);

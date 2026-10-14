@@ -14,10 +14,10 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -66,6 +66,17 @@ public class TabEditorScreen extends Screen {
     private double pressX;
     private double pressY;
     private boolean dragging;
+    /** The open tab is also selected (blue), so Ctrl+C / Delete act on it. */
+    private boolean tabSelected;
+    private static final ResourceLocation[] BANNER_ICONS = {
+            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/image.png"),
+            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/palette.png"),
+            ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/folder.png")};
+    private static final String[] BANNER_TIPS = {"emi_reorganised.image.button", "emi_reorganised.colors.tip", "emi_reorganised.image.folder"};
+    /** The last thing copied was a tab rather than items. */
+    private boolean clipboardTab;
+    private int pressTab = -1;
+    private boolean draggingTab;
     private boolean pressWasSelected;
 
     @Nullable private List<MenuItem> menu;
@@ -120,7 +131,7 @@ public class TabEditorScreen extends Screen {
     }
 
     private int paletteY() {
-        return TOP + 24;
+        return TOP + 46;
     }
 
     private int paletteCols() {
@@ -175,7 +186,7 @@ public class TabEditorScreen extends Screen {
         editButtons.add(addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.tab_delete"), b -> {
             Tab t = model.current();
             if (t != null) {
-                minecraft.setScreen(new ConfirmScreen(yes -> {
+                minecraft.setScreen(new ConfirmPopup(this, yes -> {
                     if (yes) {
                         model.deleteTab();
                         refreshName();
@@ -186,7 +197,7 @@ public class TabEditorScreen extends Screen {
         }).bounds(4, by + 22, LEFT_W - 4, 20).build()));
 
         String tabQuery = tabSearch != null ? tabSearch.getValue() : "";
-        tabSearch = new EditBox(font, 26, TOP, LEFT_W - 26, 18, Component.empty());
+        tabSearch = new EditBox(font, 4, TOP + 22, LEFT_W - 4, 18, Component.empty());
         tabSearch.setValue(tabQuery);
         tabSearch.setHint(Component.translatable("emi_reorganised.editor.search_tabs").withStyle(ChatFormatting.DARK_GRAY));
         tabSearch.setResponder(v -> tabScroll = 0);
@@ -196,19 +207,13 @@ public class TabEditorScreen extends Screen {
             tabScroll = 0;
             gridScroll = 0;
             refreshName();
-        }).bounds(4, TOP - 1, 20, 20).build();
+        }).bounds(LEFT_W - 20, TOP - 1, 20, 20).build();
         tabSwap.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.tab_swap")));
         addRenderableWidget(tabSwap);
 
         int gw = (width - 2 - paletteX() - 6) / 2;
         groupNew = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.group_new"), b -> {
-            if (!model.selectedStacks().isEmpty()) {
-                newGroup();
-            } else {
-                minecraft.setScreen(new TextPromptScreen(this, Component.translatable("emi_reorganised.menu.new_group"), "", name -> {
-                    model.newEmptyGroup(name);
-                }));
-            }
+            newGroup();
         }).bounds(paletteX() + 2, height - 26, gw, 20).build());
         groupDelete = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.group_delete"), b -> {
             GroupRef ref = selectedListGroup();
@@ -230,7 +235,7 @@ public class TabEditorScreen extends Screen {
         refreshName();
 
         String query = searchBox != null ? searchBox.getValue() : "";
-        searchBox = new EditBox(font, paletteX(), TOP, paletteW() - 22, 18, Component.empty());
+        searchBox = new EditBox(font, paletteX(), TOP + 22, paletteW(), 18, Component.empty());
         searchBox.setValue(query);
         updateSearchHint();
         addRenderableWidget(searchBox);
@@ -252,7 +257,7 @@ public class TabEditorScreen extends Screen {
     }
 
     private int tabsTop() {
-        return TOP + 22;
+        return TOP + 44;
     }
 
     /** Indices into {@link EditorModel#shown()} that match the tab search. */
@@ -282,7 +287,7 @@ public class TabEditorScreen extends Screen {
     }
 
     private void confirmDeleteGroup(GroupRef ref) {
-        minecraft.setScreen(new ConfirmScreen(yes -> {
+        minecraft.setScreen(new ConfirmPopup(this, yes -> {
             if (yes) {
                 model.deleteGroup(ref.tab(), ref.entry());
             }
@@ -484,7 +489,11 @@ public class TabEditorScreen extends Screen {
         }
         graphics.fill(2, TOP - 2, LEFT_W + 2, height - 2, 0xC0101010);
         graphics.fill(gridX() - 3, gridY() - 3, gridX() + gridCols() * SLOT + 3, height - 2 - BOTTOM_BAR, 0xC0101010);
-        graphics.fill(paletteX() - 2, paletteY() - 3, width - 2, height - 2, 0xC0101010);
+        graphics.fill(paletteX() - 2, TOP - 2, width - 2, height - 2, 0xC0101010);
+        graphics.drawString(font, Component.translatable(model.creativeMode ? "emi_reorganised.editor.header.creative"
+                : "emi_reorganised.editor.header.tabs"), 8, TOP + 5, 0xFFFFFF);
+        graphics.drawString(font, Component.translatable(groupMode ? "emi_reorganised.editor.header.groups"
+                : "emi_reorganised.editor.header.items"), paletteX() + 2, TOP + 5, 0xFFFFFF);
         renderTabs(graphics, mouseX, mouseY);
         renderGrid(graphics, mouseX, mouseY);
         renderPalette(graphics, mouseX, mouseY);
@@ -499,14 +508,18 @@ public class TabEditorScreen extends Screen {
             Tab t = model.shown().get(i);
             int y = tabsTop() + (r - tabScroll) * TAB_ROW;
             if (i == model.shownIndex()) {
-                graphics.fill(4, y, LEFT_W, y + TAB_ROW - 1, 0xFF3A5A8A);
-            } else if (tabAt(mouseX, mouseY) == i) {
+                graphics.fill(4, y, LEFT_W, y + TAB_ROW - 1, tabSelected ? 0xFF3A5A8A : 0x70C0C0C0);
+            } else if (tabAt(mouseX, mouseY) == i && !draggingTab) {
                 graphics.fill(4, y, LEFT_W, y + TAB_ROW - 1, 0x40FFFFFF);
             }
             ItemStack icon = t.icon.isEmpty() ? firstItem(t) : t.icon;
             graphics.renderItem(icon, 6, y + 2);
             String name = font.plainSubstrByWidth(t.name, LEFT_W - 30);
             graphics.drawString(font, name, 26, y + 6, t.hidden ? 0xFF808080 : 0xFFFFFFFF);
+        }
+        if (draggingTab) {
+            int ly = tabsTop() + (tabDropRow(mouseY) - tabScroll) * TAB_ROW - 1;
+            graphics.fill(4, ly, LEFT_W, ly + 2, 0xFFFFFFFF);
         }
     }
 
@@ -538,6 +551,16 @@ public class TabEditorScreen extends Screen {
                 BannerRenderer.restoreScissor(graphics);
                 if (model.isSelected(cell.ref())) {
                     graphics.fill(x, y, x + cell.w(), y + SLOT, SELECT_ITEM);
+                }
+                if (!model.creativeMode) {
+                    int hoveredButton = bannerButtonAt(cell, mouseX, mouseY);
+                    for (int b = 0; b < (def.image != null ? 3 : 2); b++) {
+                        int bx = bannerButtonX(cell, b);
+                        graphics.blit(BANNER_ICONS[b], bx, y + 1, 0, 0, 16, 16, 16, 16);
+                        if (hoveredButton == b) {
+                            graphics.fill(bx, y + 1, bx + 16, y + 17, 0x40FFFFFF);
+                        }
+                    }
                 }
                 continue;
             }
@@ -703,7 +726,9 @@ public class TabEditorScreen extends Screen {
                 graphics.renderComponentTooltip(font, List.of(Component.literal(g.name),
                         Component.translatable("emi_reorganised.group.count", g.items.size()).withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
             } else if (cell != null && cell.kind() == Kind.BANNER) {
-                graphics.renderTooltip(font, Component.literal(((TabEntry.Banner) cell.entry()).banner().name), mouseX, mouseY);
+                int b = model.creativeMode ? -1 : bannerButtonAt(cell, mouseX, mouseY);
+                graphics.renderTooltip(font, b >= 0 ? Component.translatable(BANNER_TIPS[b])
+                        : Component.literal(((TabEntry.Banner) cell.entry()).banner().name), mouseX, mouseY);
             } else if (cell != null) {
                 graphics.renderTooltip(font, cell.stack(), mouseX, mouseY);
             } else if (overTabIcon(mouseX, mouseY)) {
@@ -768,11 +793,13 @@ public class TabEditorScreen extends Screen {
         }
         int tabIndex = tabAt(mx, my);
         if (tabIndex >= 0 && button == 0) {
-            model.selectTab(tabIndex);
-            gridScroll = 0;
-            refreshName();
+            selectTabRow(tabIndex);
+            pressTab = model.creativeMode || adding != null ? -1 : tabIndex;
+            pressX = mx;
+            pressY = my;
             return true;
         }
+        tabSelected = false;
         Cell cell = cellAt(mx, my);
         if (button == 0) {
             GroupRef groupRef = groupAt(mx, my);
@@ -805,6 +832,18 @@ public class TabEditorScreen extends Screen {
                 }
                 return inGrid(mx, my);
             }
+            if (!model.creativeMode && cell.kind() == Kind.BANNER) {
+                int b = bannerButtonAt(cell, mx, my);
+                if (b >= 0) {
+                    BannerDef def = ((TabEntry.Banner) cell.entry()).banner();
+                    switch (b) {
+                        case 0 -> openBackground(def);
+                        case 1 -> openBannerColors(def);
+                        default -> BannerImageFiles.show(def.image);
+                    }
+                    return true;
+                }
+            }
             pressRef = cell.ref();
             pressKind = cell.kind();
             pressX = mx;
@@ -825,16 +864,13 @@ public class TabEditorScreen extends Screen {
         if (button == 1 && adding == null) {
             int tabRow = tabAt(mx, my);
             if (tabRow >= 0) {
-                model.selectTab(tabRow);
-                gridScroll = 0;
-                refreshName();
-                Tab tab = model.current();
+                selectTabRow(tabRow);
+                Tab tab = model.shown().get(tabRow);
                 showMenu(List.of(
-                        new MenuItem(Component.translatable("emi_reorganised.menu.copy_tab"), () -> model.copyTab(tab), true),
-                        new MenuItem(Component.translatable("emi_reorganised.menu.paste_tab"), () -> {
-                            model.pasteTab();
-                            refreshName();
-                        }, model.canPasteTab())), (int) mx, (int) my);
+                        new MenuItem(Component.translatable("emi_reorganised.menu.copy_tab"), () -> copyTab(tab), true),
+                        new MenuItem(Component.translatable("emi_reorganised.menu.paste_tab"), this::pasteTab, model.canPasteTab()),
+                        new MenuItem(Component.translatable("emi_reorganised.menu.delete"), this::confirmDeleteTab, !model.creativeMode)),
+                        (int) mx, (int) my);
                 return true;
             }
             GroupRef listRef = groupAt(mx, my);
@@ -842,7 +878,7 @@ public class TabEditorScreen extends Screen {
                 goToGroup(listRef);
                 showMenu(List.of(
                         new MenuItem(Component.translatable("emi_reorganised.menu.edit_group"), () -> minecraft.setScreen(
-                                new GroupEditScreen(this, listRef.group(), model::markDirty)), true),
+                                new GroupEditScreen(this, listRef.group(), () -> model.groupChanged(listRef.group()))), true),
                         new MenuItem(Component.translatable("emi_reorganised.menu.delete"), () -> confirmDeleteGroup(listRef), true)),
                         (int) mx, (int) my);
                 return true;
@@ -861,6 +897,124 @@ public class TabEditorScreen extends Screen {
             }
         }
         return false;
+    }
+
+    private int bannerButtonX(Cell cell, int button) {
+        return cell.x() + cell.w() - 17 - 17 * button;
+    }
+
+    /** 0 = image, 1 = colours, 2 = folder (only with an image), or -1. */
+    private int bannerButtonAt(Cell cell, double mx, double my) {
+        if (my < cell.y() + 1 || my >= cell.y() + 17) {
+            return -1;
+        }
+        BannerDef def = ((TabEntry.Banner) cell.entry()).banner();
+        for (int b = 0; b < (def.image != null ? 3 : 2); b++) {
+            int bx = bannerButtonX(cell, b);
+            if (mx >= bx && mx < bx + 16) {
+                return b;
+            }
+        }
+        return -1;
+    }
+
+    private void openBannerColors(BannerDef def) {
+        BannerDef plain = def.copy(def.id);
+        plain.colors = BannerDef.Colors.NONE;
+        minecraft.setScreen(new BannerColorScreen(this, BannerView.of(plain, BannerImages.path(def.image)), def.colors, colors -> {
+            def.colors = colors;
+            model.markDirty();
+        }));
+    }
+
+    /** No image yet: straight to the picker. With an image: the Edit Background popup (replace or delete). */
+    private void openBackground(BannerDef def) {
+        if (def.image == null || BannerImages.path(def.image) == null) {
+            openBannerPicker(def);
+            return;
+        }
+        minecraft.setScreen(new EditBackgroundScreen(this, def, () -> openBannerPicker(def), () -> confirmDeleteImage(def)));
+    }
+
+    private void openBannerPicker(BannerDef def) {
+        minecraft.setScreen(new BannerPickerScreen(this, def, file -> {
+            def.image = file;
+            model.markDirty();
+        }));
+    }
+
+    private void confirmDeleteImage(BannerDef def) {
+        String file = def.image;
+        minecraft.setScreen(new ConfirmPopup(this, yes -> {
+            if (yes && def.image != null) {
+                try {
+                    BannerImageFiles.delete(def.image);
+                } catch (java.io.IOException e) {
+                    com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Couldn't delete banner image", e);
+                }
+                def.image = null;
+                model.markDirty();
+            }
+        }, Component.translatable("emi_reorganised.image.confirm_title"),
+                Component.translatable("emi_reorganised.image.confirm_message", file)));
+    }
+
+    private void selectTabRow(int index) {
+        model.selectTab(index);
+        gridScroll = 0;
+        refreshName();
+        if (adding == null) {
+            model.selection.clear();
+            tabSelected = true;
+        }
+    }
+
+    private void copyTab(Tab tab) {
+        model.copyTab(tab);
+        clipboardTab = true;
+    }
+
+    private void pasteTab() {
+        model.pasteTab();
+        refreshName();
+    }
+
+    private void copyItems() {
+        model.copy();
+        clipboardTab = false;
+    }
+
+    private void cutItems() {
+        model.cut();
+        clipboardTab = false;
+    }
+
+    private void confirmDeleteTab() {
+        Tab t = model.current();
+        if (model.creativeMode || t == null) {
+            return;
+        }
+        minecraft.setScreen(new ConfirmPopup(this, yes -> {
+            if (yes) {
+                model.deleteTab();
+                tabSelected = false;
+                refreshName();
+            }
+        }, Component.translatable("emi_reorganised.editor.tab_delete_title"), Component.literal(t.name)));
+    }
+
+    /** Row (in the filtered tab list) a dragged tab would be inserted before. */
+    private int tabDropRow(double my) {
+        int r = tabScroll + (int) Math.floor((my - tabsTop()) / TAB_ROW + 0.5);
+        return Math.max(0, Math.min(r, tabRows().size()));
+    }
+
+    private void dropTab(double my) {
+        List<Integer> rows = tabRows();
+        int r = tabDropRow(my);
+        int before = r < rows.size() ? rows.get(r) : rows.isEmpty() ? model.tabs.size() : rows.getLast() + 1;
+        model.moveTabTo(pressTab, before);
+        refreshName();
     }
 
     private void selectRange(Cell to) {
@@ -886,7 +1040,14 @@ public class TabEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
-        if ((pressRef != null || pressPalette != null || pressGroup != null) && !dragging && Math.abs(mx - pressX) + Math.abs(my - pressY) > 4) {
+        if (pressTab >= 0 && !draggingTab && Math.abs(my - pressY) > 4) {
+            draggingTab = true;
+        }
+        if (draggingTab) {
+            return true;
+        }
+        if (!model.creativeMode && (pressRef != null || pressPalette != null || pressGroup != null) && !dragging
+                && Math.abs(mx - pressX) + Math.abs(my - pressY) > 4) {
             dragging = true;
         }
         return dragging || super.mouseDragged(mx, my, button, dx, dy);
@@ -895,6 +1056,10 @@ public class TabEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         try {
+            if (draggingTab) {
+                dropTab(my);
+                return true;
+            }
             if (dragging) {
                 drop(mx, my);
                 return true;
@@ -922,6 +1087,8 @@ public class TabEditorScreen extends Screen {
             pressPalette = null;
             pressGroup = null;
             dragging = false;
+            pressTab = -1;
+            draggingTab = false;
         }
     }
 
@@ -1003,8 +1170,23 @@ public class TabEditorScreen extends Screen {
         }
         boolean typing = getFocused() instanceof EditBox;
         if (!typing && menu == null) {
+            if (tabSelected && hasControlDown() && key == GLFW.GLFW_KEY_C) {
+                int i = model.shownIndex();
+                if (i >= 0 && i < model.shown().size()) {
+                    copyTab(model.shown().get(i));
+                }
+                return true;
+            }
+            if (clipboardTab && hasControlDown() && key == GLFW.GLFW_KEY_V) {
+                pasteTab();
+                return true;
+            }
+            if (tabSelected && (key == GLFW.GLFW_KEY_DELETE || key == GLFW.GLFW_KEY_BACKSPACE)) {
+                confirmDeleteTab();
+                return true;
+            }
             if (hasControlDown() && key == GLFW.GLFW_KEY_C) {
-                model.copy();
+                copyItems();
                 return true;
             }
             if (model.creativeMode && (key == GLFW.GLFW_KEY_X || key == GLFW.GLFW_KEY_V
@@ -1012,7 +1194,7 @@ public class TabEditorScreen extends Screen {
                 return true;
             }
             if (hasControlDown() && key == GLFW.GLFW_KEY_X) {
-                model.cut();
+                cutItems();
                 return true;
             }
             if (hasControlDown() && key == GLFW.GLFW_KEY_V) {
@@ -1032,23 +1214,28 @@ public class TabEditorScreen extends Screen {
     private void openMenu(@Nullable Cell cell, int x, int y) {
         boolean any = !model.selection.isEmpty();
         if (model.creativeMode) {
-            showMenu(List.of(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), model::copy, any)), x, y);
+            showMenu(List.of(
+                    new MenuItem(Component.translatable("emi_reorganised.menu.cut"), () -> { }, false),
+                    new MenuItem(Component.translatable("emi_reorganised.menu.copy"), this::copyItems, any),
+                    new MenuItem(Component.translatable("emi_reorganised.menu.paste"), () -> { }, false),
+                    new MenuItem(Component.translatable("emi_reorganised.menu.delete"), () -> { }, false)), x, y);
             return;
         }
         List<MenuItem> items = new ArrayList<>();
         boolean itemsSelected = !model.selectedStacks().isEmpty();
-        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.cut"), model::cut, any));
-        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), model::copy, any));
+        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.cut"), this::cutItems, any));
+        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), this::copyItems, any));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.paste"), model::paste, model.canPaste()));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.delete"), model::delete, any));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.new_group"), this::newGroup,
                 itemsSelected && (cell == null || cell.kind() != Kind.GROUP)));
-        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.add_to_group"), () -> adding = model.selectedStacks(), itemsSelected));
+        items.add(new MenuItem(Component.translatable("emi_reorganised.menu.add_to_group"), () -> adding = model.selectedStacks(),
+                itemsSelected && (cell == null || cell.kind() != Kind.GROUP)));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.new_banner"), this::addBanner, model.current() != null));
         if (cell != null && cell.kind() == Kind.GROUP) {
             ItemGroup g = ((TabEntry.Group) cell.entry()).group();
             items.add(new MenuItem(Component.translatable("emi_reorganised.menu.edit_group"), () -> minecraft.setScreen(
-                    new GroupEditScreen(this, g, model::markDirty)), true));
+                    new GroupEditScreen(this, g, () -> model.groupChanged(g))), true));
             items.add(new MenuItem(Component.translatable("emi_reorganised.menu.ungroup"), () -> {
                 List<TabEntry> entries = model.entries();
                 int index = cell.ref().entry();
@@ -1065,42 +1252,13 @@ public class TabEditorScreen extends Screen {
                         def.name = name;
                         model.markDirty();
                     })), true));
-            items.add(new MenuItem(Component.translatable("emi_reorganised.colors.tip"), () -> {
-                BannerDef plain = def.copy(def.id);
-                plain.colors = BannerDef.Colors.NONE;
-                minecraft.setScreen(new BannerColorScreen(this, BannerView.of(plain, BannerImages.path(def.image)), def.colors, colors -> {
-                    def.colors = colors;
-                    model.markDirty();
-                }));
-            }, true));
+            items.add(new MenuItem(Component.translatable("emi_reorganised.colors.tip"), () -> openBannerColors(def), true));
         }
         if (cell != null && cell.kind() == Kind.BANNER) {
             BannerDef def = ((TabEntry.Banner) cell.entry()).banner();
-            if (def.image == null) {
-                items.add(new MenuItem(Component.translatable("emi_reorganised.image.create"), () -> {
-                    try {
-                        def.image = BannerImageFiles.create(def);
-                        model.markDirty();
-                        BannerImageFiles.show(def.image);
-                    } catch (java.io.IOException e) {
-                        com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Couldn't create banner image", e);
-                    }
-                }, true));
-            } else {
+            items.add(new MenuItem(Component.translatable("emi_reorganised.image.edit"), () -> openBackground(def), true));
+            if (def.image != null) {
                 items.add(new MenuItem(Component.translatable("emi_reorganised.image.open"), () -> BannerImageFiles.show(def.image), true));
-                items.add(new MenuItem(Component.translatable("emi_reorganised.image.remove"), () -> minecraft.setScreen(new ConfirmScreen(yes -> {
-                    if (yes && def.image != null) {
-                        try {
-                            BannerImageFiles.delete(def.image);
-                        } catch (java.io.IOException e) {
-                            com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Couldn't delete banner image", e);
-                        }
-                        def.image = null;
-                        model.markDirty();
-                    }
-                    minecraft.setScreen(this);
-                }, Component.translatable("emi_reorganised.image.confirm_title"),
-                        Component.translatable("emi_reorganised.image.confirm_message", def.image))), true));
             }
         }
         if (cell != null && (cell.kind() == Kind.ITEM || cell.kind() == Kind.MEMBER)) {
@@ -1138,10 +1296,18 @@ public class TabEditorScreen extends Screen {
 
     private void newGroup() {
         List<ItemStack> stacks = model.selectedStacks();
-        String suggested = stacks.isEmpty() ? "" : stacks.getFirst().getHoverName().getString();
-        minecraft.setScreen(new TextPromptScreen(this, Component.translatable("emi_reorganised.menu.new_group"), suggested, name -> {
-            ItemGroup group = model.newGroup(model.uniqueGroupId(name), name);
+        boolean fromSelection = !stacks.isEmpty();
+        ItemGroup draft = new ItemGroup("", fromSelection ? stacks.getFirst().getHoverName().getString() : "");
+        stacks.forEach(s -> draft.items.add(s.copy()));
+        minecraft.setScreen(new GroupEditScreen(this, Component.translatable("emi_reorganised.group.new"), draft, () -> {
+            String name = draft.name.isBlank() ? "Group" : draft.name;
+            ItemGroup group = fromSelection ? model.newGroup(model.uniqueGroupId(name), name) : model.newEmptyGroup(name);
+            group.regex = draft.regex;
+            group.tag = draft.tag;
+            group.items.clear();
+            draft.items.forEach(s -> group.items.add(s.copy()));
             model.closed.remove(group.id);
+            model.groupChanged(group);
         }));
     }
 
@@ -1157,7 +1323,7 @@ public class TabEditorScreen extends Screen {
         if (stacks == null) {
             return;
         }
-        minecraft.setScreen(new ConfirmScreen(yes -> {
+        minecraft.setScreen(new ConfirmPopup(this, yes -> {
             if (yes) {
                 model.addToGroup(group, stacks);
                 adding = null;
@@ -1175,7 +1341,7 @@ public class TabEditorScreen extends Screen {
             minecraft.setScreen(parent);
             return;
         }
-        minecraft.setScreen(new ConfirmScreen(yes -> {
+        minecraft.setScreen(new ConfirmPopup(this, yes -> {
             if (yes) {
                 model.save();
             }

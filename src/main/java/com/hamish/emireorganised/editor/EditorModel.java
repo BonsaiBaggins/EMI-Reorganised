@@ -246,6 +246,33 @@ public final class EditorModel {
         }
     }
 
+    /** Moves tab {@code from} so it sits before the tab currently at {@code before} (or last). */
+    public void moveTabTo(int from, int before) {
+        if (from < 0 || from >= tabs.size()) {
+            return;
+        }
+        before = Math.max(0, Math.min(before, tabs.size()));
+        if (before == from || before == from + 1) {
+            return;
+        }
+        Tab open = current();
+        Tab moved = tabs.remove(from);
+        tabs.add(before > from ? before - 1 : before, moved);
+        tab = Math.max(0, tabs.indexOf(open));
+        dirty = true;
+    }
+
+    /** After a group's item list changed: removes other copies of its items from the tab that owns it. */
+    public void groupChanged(ItemGroup group) {
+        dirty = true;
+        for (Tab t : tabs) {
+            if (t.entries.stream().anyMatch(e -> e instanceof TabEntry.Group g && g.group() == group)) {
+                enforceUnique(t.entries, group.items);
+                return;
+            }
+        }
+    }
+
     // ---- selection helpers ----
 
     public boolean isSelected(Ref ref) {
