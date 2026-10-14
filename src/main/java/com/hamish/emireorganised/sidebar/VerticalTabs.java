@@ -159,13 +159,17 @@ public final class VerticalTabs {
             var pose = graphics.pose();
             pose.pushPose();
             if (left) {
-                pose.translate(tx, y + s, 0);
-                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(-90));
+                // Rotated and mirrored so the sprite's highlight ends up on top, as on the right side.
+                pose.translate(tx, y, 0);
+                pose.scale(-1, 1, 1);
+                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(90));
+                com.mojang.blaze3d.systems.RenderSystem.disableCull();
             } else {
                 pose.translate(tx + d, y, 0);
                 pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(90));
             }
             graphics.blitSprite(selected ? TAB_SELECTED : TAB, 0, 0, s, d);
+            com.mojang.blaze3d.systems.RenderSystem.enableCull();
             pose.popPose();
             int ix = tx + (d - 16) / 2 + (left ? -1 : 1);
             int iy = y + (s - 16) / 2;
