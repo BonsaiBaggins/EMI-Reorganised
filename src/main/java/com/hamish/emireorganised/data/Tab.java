@@ -26,7 +26,11 @@ public final class Tab {
         copy.hidden = hidden;
         copy.source = source;
         for (TabEntry entry : entries) {
-            copy.entries.add(entry instanceof TabEntry.Group g ? new TabEntry.Group(g.group().copy(g.group().id)) : entry.copy());
+            copy.entries.add(switch (entry) {
+                case TabEntry.Group g -> new TabEntry.Group(g.group().copy(g.group().id));
+                case TabEntry.Banner b -> new TabEntry.Banner(b.banner().copy(b.banner().id));
+                default -> entry.copy();
+            });
         }
         return copy;
     }
