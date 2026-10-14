@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class SidebarPanelScrollMixin {
     @Shadow @Final public SizedButtonWidget pageLeft;
     @Shadow @Final public SizedButtonWidget pageRight;
+    @Shadow @Final public dev.emi.emi.screen.widget.SidebarButtonWidget cycle;
     @Shadow public EmiScreenManager.ScreenSpace space;
     @Shadow public int page;
 
@@ -32,6 +33,13 @@ public abstract class SidebarPanelScrollMixin {
         if (space != null && IndexScroll.enabled(space.getType())) {
             pageLeft.visible = false;
             pageRight.visible = false;
+        }
+        if (space != null && space.getType() == dev.emi.emi.config.SidebarType.FAVORITES
+                && com.hamish.emireorganised.sidebar.FavouriteSearch.enabled()) {
+            // The search bar takes the header row.
+            pageLeft.visible = false;
+            pageRight.visible = false;
+            cycle.visible = false;
         }
     }
 
