@@ -68,5 +68,12 @@
   "emi_reorganised.editor.icon_title": "Choose a tab icon",
   "emi_reorganised.editor.icon_tip": "Click to change the tab icon",
   "emi_reorganised.editor.tab_name": "Tab name",
-  "emi_reorganised.editor.tab_new_title": "New tab"
+  "emi_reorganised.editor.tab_new_title": "New tab",
+  "emi_reorganised.editor.search_tabs": "Search tabs...",
+  "emi_reorganised.editor.tab_swap": "Switch between your tabs and the vanilla creative tabs (read only)",
+  "emi_reorganised.editor.group_new": "New",
+  "emi_reorganised.editor.group_delete": "Delete",
+  "emi_reorganised.editor.group_delete_title": "Delete this group and its items from its tab?",
+  "emi_reorganised.menu.copy_tab": "Copy tab",
+  "emi_reorganised.menu.paste_tab": "Paste tab"
 }

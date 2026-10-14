@@ -38,6 +38,11 @@ public final class EditorModel {
 
     public final List<Tab> tabs = new ArrayList<>();
     public int tab;
+    /** Read-only copies of the vanilla creative tabs, shown instead of {@link #tabs} in creative mode. */
+    public final List<Tab> creative = new ArrayList<>();
+    public boolean creativeMode;
+    public int creativeTab;
+    @Nullable private Tab tabClipboard;
     public final Set<Ref> selection = new LinkedHashSet<>();
     /** Groups closed in the editor (by group id); groups start open. */
     public final Set<String> closed = new HashSet<>();
@@ -74,7 +79,108 @@ public final class EditorModel {
 
     @Nullable
     public Tab current() {
-        return tab >= 0 && tab < tabs.size() ? tabs.get(tab) : null;
+        List<Tab> list = shown();
+        int i = shownIndex();
+        return i >= 0 && i < list.size() ? list.get(i) : null;
+    }
+
+    /** The tab list being shown: the user's tabs, or the creative tabs in creative mode. */
+    public List<Tab> shown() {
+        return creativeMode ? creative : tabs;
+    }
+
+    public int shownIndex() {
+        return creativeMode ? creativeTab : tab;
+    }
+
+    public void setCreativeMode(boolean on) {
+        if (on && creative.isEmpty()) {
+            var level = net.minecraft.client.Minecraft.getInstance().level;
+            if (level != null) {
+                creative.addAll(TabStore.snapshot(level.registryAccess()));
+            }
+        }
+        creativeMode = on;
+        selection.clear();
+    }
+
+    public void copyTab(Tab t) {
+        tabClipboard = t.copy();
+    }
+
+    public boolean canPasteTab() {
+        return tabClipboard != null && !creativeMode;
+    }
+
+    /** Pastes a copy of the copied tab after the current tab, with fresh tab and group ids. */
+    public void pasteTab() {
+        if (!canPasteTab()) {
+            return;
+        }
+        Tab t = new Tab(uniqueTabId(tabClipboard.name), tabClipboard.name);
+        t.icon = tabClipboard.icon.copy();
+        for (TabEntry e : tabClipboard.entries) {
+            t.entries.add(e instanceof TabEntry.Group g ? new TabEntry.Group(g.group().copy(uniqueGroupId(g.group().name))) : e.copy());
+        }
+        tabs.add(Math.min(tab + 1, tabs.size()), t);
+        tab = tabs.indexOf(t);
+        selection.clear();
+        dirty = true;
+    }
+
+    public ItemGroup newEmptyGroup(String name) {
+        ItemGroup group = new ItemGroup(uniqueGroupId(name), name);
+        entries().add(new TabEntry.Group(group));
+        selection.clear();
+        selection.add(Ref.of(entries().size() - 1));
+        dirty = true;
+        return group;
+    }
+
+    public void deleteGroup(int tabIndex, int entry) {
+        List<TabEntry> entries = tabs.get(tabIndex).entries;
+        if (entry >= 0 && entry < entries.size() && entries.get(entry) instanceof TabEntry.Group) {
+            entries.remove(entry);
+            selection.clear();
+            dirty = true;
+        }
+    }
+
+    private static List<ItemStack> stacksOf(List<TabEntry> items) {
+        List<ItemStack> out = new ArrayList<>();
+        for (TabEntry e : items) {
+            if (e instanceof TabEntry.Item item) {
+                out.add(item.stack());
+            } else if (e instanceof TabEntry.Group g) {
+                out.addAll(g.group().items);
+            }
+        }
+        return out;
+    }
+
+    /** An item may appear once per tab: removes every other copy of the {@code kept} stacks from the tab. */
+    private static void enforceUnique(List<TabEntry> entries, List<ItemStack> kept) {
+        Set<ItemStack> keep = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        keep.addAll(kept);
+        java.util.function.Predicate<ItemStack> duplicate = s -> !keep.contains(s)
+                && kept.stream().anyMatch(k -> ItemStack.isSameItemSameComponents(k, s));
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            TabEntry e = entries.get(i);
+            if (e instanceof TabEntry.Item item && duplicate.test(item.stack())) {
+                entries.remove(i);
+            } else if (e instanceof TabEntry.Group g && g.group().items.removeIf(duplicate) && g.group().items.isEmpty()) {
+                entries.remove(i);
+            }
+        }
+    }
+
+    private static int indexOfIdentity(List<?> list, Object o) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == o) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public List<TabEntry> entries() {
@@ -83,6 +189,13 @@ public final class EditorModel {
     }
 
     public void selectTab(int index) {
+        if (creativeMode) {
+            if (index != creativeTab) {
+                creativeTab = index;
+                selection.clear();
+            }
+            return;
+        }
         if (index != tab) {
             tab = index;
             selection.clear();
@@ -268,9 +381,13 @@ public final class EditorModel {
         List<TabEntry> entries = entries();
         at = Math.max(0, Math.min(at, entries.size()));
         entries.addAll(at, items);
+        enforceUnique(entries, stacksOf(items));
         selection.clear();
-        for (int i = 0; i < items.size(); i++) {
-            selection.add(Ref.of(at + i));
+        for (TabEntry item : items) {
+            int i = indexOfIdentity(entries, item);
+            if (i >= 0) {
+                selection.add(Ref.of(i));
+            }
         }
         dirty = true;
     }
@@ -282,10 +399,18 @@ public final class EditorModel {
         }
         List<ItemStack> items = g.group().items;
         member = Math.max(0, Math.min(member, items.size()));
-        items.addAll(member, stacks.stream().map(ItemStack::copy).toList());
+        List<ItemStack> copies = stacks.stream().map(ItemStack::copy).toList();
+        items.addAll(member, copies);
+        List<TabEntry> entries = entries();
+        TabEntry groupEntry = entries.get(entry);
+        enforceUnique(entries, copies);
         selection.clear();
-        for (int i = 0; i < stacks.size(); i++) {
-            selection.add(new Ref(entry, member + i));
+        int index = indexOfIdentity(entries, groupEntry);
+        for (ItemStack copy : copies) {
+            int m = indexOfIdentity(items, copy);
+            if (index >= 0 && m >= 0) {
+                selection.add(new Ref(index, m));
+            }
         }
         dirty = true;
     }
@@ -342,9 +467,20 @@ public final class EditorModel {
     }
 
     public void addToGroup(ItemGroup group, List<ItemStack> stacks) {
+        List<ItemStack> added = new ArrayList<>();
         for (ItemStack stack : stacks) {
             if (group.items.stream().noneMatch(s -> ItemStack.isSameItemSameComponents(s, stack))) {
-                group.items.add(stack.copy());
+                ItemStack copy = stack.copy();
+                group.items.add(copy);
+                added.add(copy);
+            }
+        }
+        for (Tab t : tabs) {
+            if (t.entries.stream().anyMatch(e -> e instanceof TabEntry.Group g && g.group() == group)) {
+                enforceUnique(t.entries, added);
+                if (t == current()) {
+                    selection.clear();
+                }
             }
         }
         dirty = true;

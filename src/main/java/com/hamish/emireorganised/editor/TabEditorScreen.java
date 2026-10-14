@@ -35,7 +35,7 @@ public class TabEditorScreen extends Screen {
     private static final int SELECT_GROUP = 0x8040C040;
     private static final int SELECT_ADD = 0x90A040FF;
     private static final int MEMBER_TINT = 0x305C9DFF;
-    private static final int GROUP_FRAME = 0xFF7FA7D9;
+    private static final int GROUP_FRAME = 0xFF5E5E5E;
 
     enum Kind { ITEM, BANNER, GROUP, MEMBER }
 
@@ -75,6 +75,10 @@ public class TabEditorScreen extends Screen {
     @Nullable private List<ItemStack> adding;
     /** Right panel lists groups instead of items. */
     private boolean groupMode;
+    private EditBox tabSearch;
+    private final List<Button> editButtons = new ArrayList<>();
+    private Button groupNew;
+    private Button groupDelete;
     private List<GroupRef> groupList = List.of();
     @Nullable private String groupQuery;
     @Nullable private GroupRef pressGroup;
@@ -124,7 +128,7 @@ public class TabEditorScreen extends Screen {
     }
 
     private int paletteRows() {
-        return Math.max(1, (height - paletteY() - 6) / SLOT);
+        return Math.max(1, (height - paletteY() - 6 - (groupMode ? 24 : 0)) / SLOT);
     }
 
     private int tabListBottom() {
@@ -133,6 +137,7 @@ public class TabEditorScreen extends Screen {
 
     @Override
     protected void init() {
+        editButtons.clear();
         int right = width - 4;
         addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.close"), b -> onClose())
                 .bounds(right - 60, 4, 60, 20).build());
@@ -149,13 +154,13 @@ public class TabEditorScreen extends Screen {
                 Button.builder(Component.translatable("emi_reorganised.editor.groups_toggle"), b -> model.setAllOpen(!model.anyOpen())).build())) {
             int w = font.width(button.getMessage()) + 12;
             button.setRectangle(w, 20, bx, bottomY);
-            addRenderableWidget(button);
+            editButtons.add(addRenderableWidget(button));
             bx += w + 4;
         }
 
         int bw = (LEFT_W - 8) / 3;
         int by = height - 4 - 44;
-        addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.tab_new"), b -> minecraft.setScreen(
+        editButtons.add(addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.tab_new"), b -> minecraft.setScreen(
                 new IconPickerScreen(this, Component.translatable("emi_reorganised.editor.tab_new_title"), "", ItemStack.EMPTY, (name, icon) -> {
                     model.newTab(name);
                     Tab t = model.current();
@@ -164,10 +169,10 @@ public class TabEditorScreen extends Screen {
                         model.markDirty();
                     }
                     refreshName();
-                }))).bounds(4, by, bw, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("\u25B2"), b -> model.moveTab(-1)).bounds(6 + bw, by, bw, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("\u25BC"), b -> model.moveTab(1)).bounds(8 + 2 * bw, by, bw, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.tab_delete"), b -> {
+                }))).bounds(4, by, bw, 20).build()));
+        editButtons.add(addRenderableWidget(Button.builder(Component.literal("\u25B2"), b -> model.moveTab(-1)).bounds(6 + bw, by, bw, 20).build()));
+        editButtons.add(addRenderableWidget(Button.builder(Component.literal("\u25BC"), b -> model.moveTab(1)).bounds(8 + 2 * bw, by, bw, 20).build()));
+        editButtons.add(addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.tab_delete"), b -> {
             Tab t = model.current();
             if (t != null) {
                 minecraft.setScreen(new ConfirmScreen(yes -> {
@@ -178,7 +183,39 @@ public class TabEditorScreen extends Screen {
                     minecraft.setScreen(this);
                 }, Component.translatable("emi_reorganised.editor.tab_delete_title"), Component.literal(t.name)));
             }
-        }).bounds(4, by + 22, LEFT_W - 4, 20).build());
+        }).bounds(4, by + 22, LEFT_W - 4, 20).build()));
+
+        String tabQuery = tabSearch != null ? tabSearch.getValue() : "";
+        tabSearch = new EditBox(font, 26, TOP, LEFT_W - 26, 18, Component.empty());
+        tabSearch.setValue(tabQuery);
+        tabSearch.setHint(Component.translatable("emi_reorganised.editor.search_tabs").withStyle(ChatFormatting.DARK_GRAY));
+        tabSearch.setResponder(v -> tabScroll = 0);
+        addRenderableWidget(tabSearch);
+        Button tabSwap = Button.builder(Component.literal("\u21C4"), b -> {
+            model.setCreativeMode(!model.creativeMode);
+            tabScroll = 0;
+            gridScroll = 0;
+            refreshName();
+        }).bounds(4, TOP - 1, 20, 20).build();
+        tabSwap.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.tab_swap")));
+        addRenderableWidget(tabSwap);
+
+        int gw = (width - 2 - paletteX() - 6) / 2;
+        groupNew = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.group_new"), b -> {
+            if (!model.selectedStacks().isEmpty()) {
+                newGroup();
+            } else {
+                minecraft.setScreen(new TextPromptScreen(this, Component.translatable("emi_reorganised.menu.new_group"), "", name -> {
+                    model.newEmptyGroup(name);
+                }));
+            }
+        }).bounds(paletteX() + 2, height - 26, gw, 20).build());
+        groupDelete = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.editor.group_delete"), b -> {
+            GroupRef ref = selectedListGroup();
+            if (ref != null) {
+                confirmDeleteGroup(ref);
+            }
+        }).bounds(paletteX() + 4 + gw, height - 26, gw, 20).build());
 
         nameBox = new EditBox(font, gridX() + 22, TOP, gridCols() * SLOT - 22, 18, Component.empty());
         nameBox.setMaxLength(64);
@@ -210,7 +247,53 @@ public class TabEditorScreen extends Screen {
         Tab t = model.current();
         if (nameBox != null) {
             nameBox.setValue(t != null ? t.name : "");
+            nameBox.setEditable(!model.creativeMode);
         }
+    }
+
+    private int tabsTop() {
+        return TOP + 22;
+    }
+
+    /** Indices into {@link EditorModel#shown()} that match the tab search. */
+    private List<Integer> tabRows() {
+        String query = tabSearch == null ? "" : tabSearch.getValue().trim().toLowerCase(Locale.ROOT);
+        List<Integer> out = new ArrayList<>();
+        List<Tab> list = model.shown();
+        for (int i = 0; i < list.size(); i++) {
+            if (query.isEmpty() || list.get(i).name.toLowerCase(Locale.ROOT).contains(query)) {
+                out.add(i);
+            }
+        }
+        return out;
+    }
+
+    @Nullable
+    private GroupRef selectedListGroup() {
+        if (model.creativeMode) {
+            return null;
+        }
+        for (GroupRef ref : groupList) {
+            if (ref.tab() == model.tab && model.isSelected(EditorModel.Ref.of(ref.entry()))) {
+                return ref;
+            }
+        }
+        return null;
+    }
+
+    private void confirmDeleteGroup(GroupRef ref) {
+        minecraft.setScreen(new ConfirmScreen(yes -> {
+            if (yes) {
+                model.deleteGroup(ref.tab(), ref.entry());
+            }
+            minecraft.setScreen(this);
+        }, Component.translatable("emi_reorganised.editor.group_delete_title"), Component.literal(ref.group().name)));
+    }
+
+    private void showMenu(List<MenuItem> items, int x, int y) {
+        menu = items;
+        menuX = x;
+        menuY = y;
     }
 
     private void updateSearchHint() {
@@ -252,6 +335,10 @@ public class TabEditorScreen extends Screen {
     }
 
     private void goToGroup(GroupRef ref) {
+        if (model.creativeMode) {
+            model.setCreativeMode(false);
+            refreshName();
+        }
         if (ref.tab() != model.tab) {
             model.selectTab(ref.tab());
             gridScroll = 0;
@@ -368,11 +455,12 @@ public class TabEditorScreen extends Screen {
     }
 
     private int tabAt(double mx, double my) {
-        if (mx < 4 || mx >= LEFT_W || my < TOP || my >= tabListBottom()) {
+        if (mx < 4 || mx >= LEFT_W || my < tabsTop() || my >= tabListBottom()) {
             return -1;
         }
-        int index = tabScroll + (int) ((my - TOP) / TAB_ROW);
-        return index < model.tabs.size() ? index : -1;
+        List<Integer> rows = tabRows();
+        int index = tabScroll + (int) ((my - tabsTop()) / TAB_ROW);
+        return index < rows.size() ? rows.get(index) : -1;
     }
 
     // ---- rendering ----
@@ -403,12 +491,14 @@ public class TabEditorScreen extends Screen {
     }
 
     private void renderTabs(GuiGraphics graphics, int mouseX, int mouseY) {
-        int visible = (tabListBottom() - TOP) / TAB_ROW;
-        tabScroll = Math.max(0, Math.min(tabScroll, model.tabs.size() - visible));
-        for (int i = tabScroll; i < Math.min(model.tabs.size(), tabScroll + visible); i++) {
-            Tab t = model.tabs.get(i);
-            int y = TOP + (i - tabScroll) * TAB_ROW;
-            if (i == model.tab) {
+        int visible = (tabListBottom() - tabsTop()) / TAB_ROW;
+        List<Integer> rows = tabRows();
+        tabScroll = Math.max(0, Math.min(tabScroll, rows.size() - visible));
+        for (int r = tabScroll; r < Math.min(rows.size(), tabScroll + visible); r++) {
+            int i = rows.get(r);
+            Tab t = model.shown().get(i);
+            int y = tabsTop() + (r - tabScroll) * TAB_ROW;
+            if (i == model.shownIndex()) {
                 graphics.fill(4, y, LEFT_W, y + TAB_ROW - 1, 0xFF3A5A8A);
             } else if (tabAt(mouseX, mouseY) == i) {
                 graphics.fill(4, y, LEFT_W, y + TAB_ROW - 1, 0x40FFFFFF);
@@ -556,6 +646,13 @@ public class TabEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        for (Button b : editButtons) {
+            b.active = !model.creativeMode;
+        }
+        groupNew.visible = groupMode;
+        groupDelete.visible = groupMode;
+        groupNew.active = !model.creativeMode && model.current() != null;
+        groupDelete.active = selectedListGroup() != null;
         super.render(graphics, mouseX, mouseY, partialTick);
         Tab t = model.current();
         Component title = adding != null
@@ -661,7 +758,7 @@ public class TabEditorScreen extends Screen {
             return true;
         }
         setFocused(null);
-        if (button == 0 && overTabIcon(mx, my)) {
+        if (button == 0 && overTabIcon(mx, my) && !model.creativeMode) {
             Tab tab = model.current();
             minecraft.setScreen(new IconPickerScreen(this, Component.translatable("emi_reorganised.editor.icon_title"), null, tab.icon, (name, icon) -> {
                 tab.icon = icon.copy();
@@ -724,6 +821,32 @@ public class TabEditorScreen extends Screen {
                 model.selection.add(cell.ref());
             }
             return true;
+        }
+        if (button == 1 && adding == null) {
+            int tabRow = tabAt(mx, my);
+            if (tabRow >= 0) {
+                model.selectTab(tabRow);
+                gridScroll = 0;
+                refreshName();
+                Tab tab = model.current();
+                showMenu(List.of(
+                        new MenuItem(Component.translatable("emi_reorganised.menu.copy_tab"), () -> model.copyTab(tab), true),
+                        new MenuItem(Component.translatable("emi_reorganised.menu.paste_tab"), () -> {
+                            model.pasteTab();
+                            refreshName();
+                        }, model.canPasteTab())), (int) mx, (int) my);
+                return true;
+            }
+            GroupRef listRef = groupAt(mx, my);
+            if (listRef != null) {
+                goToGroup(listRef);
+                showMenu(List.of(
+                        new MenuItem(Component.translatable("emi_reorganised.menu.edit_group"), () -> minecraft.setScreen(
+                                new GroupEditScreen(this, listRef.group(), model::markDirty)), true),
+                        new MenuItem(Component.translatable("emi_reorganised.menu.delete"), () -> confirmDeleteGroup(listRef), true)),
+                        (int) mx, (int) my);
+                return true;
+            }
         }
         if (button == 1) {
             if (cell != null && !model.isSelected(cell.ref())) {
@@ -803,7 +926,7 @@ public class TabEditorScreen extends Screen {
     }
 
     private void drop(double mx, double my) {
-        if (model.current() == null || !inGrid(mx, my)) {
+        if (model.creativeMode || model.current() == null || !inGrid(mx, my)) {
             return;
         }
         Cell cell = cellAt(mx, my);
@@ -884,6 +1007,10 @@ public class TabEditorScreen extends Screen {
                 model.copy();
                 return true;
             }
+            if (model.creativeMode && (key == GLFW.GLFW_KEY_X || key == GLFW.GLFW_KEY_V
+                    || key == GLFW.GLFW_KEY_DELETE || key == GLFW.GLFW_KEY_BACKSPACE)) {
+                return true;
+            }
             if (hasControlDown() && key == GLFW.GLFW_KEY_X) {
                 model.cut();
                 return true;
@@ -903,8 +1030,12 @@ public class TabEditorScreen extends Screen {
     // ---- right-click menu ----
 
     private void openMenu(@Nullable Cell cell, int x, int y) {
-        List<MenuItem> items = new ArrayList<>();
         boolean any = !model.selection.isEmpty();
+        if (model.creativeMode) {
+            showMenu(List.of(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), model::copy, any)), x, y);
+            return;
+        }
+        List<MenuItem> items = new ArrayList<>();
         boolean itemsSelected = !model.selectedStacks().isEmpty();
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.cut"), model::cut, any));
         items.add(new MenuItem(Component.translatable("emi_reorganised.menu.copy"), model::copy, any));
