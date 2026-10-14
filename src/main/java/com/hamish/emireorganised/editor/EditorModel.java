@@ -50,6 +50,7 @@ public final class EditorModel {
 
     public void reload() {
         tabs.clear();
+        TabStore.ensureLoaded();
         for (Tab t : TabStore.tabs()) {
             tabs.add(t.copy());
         }
