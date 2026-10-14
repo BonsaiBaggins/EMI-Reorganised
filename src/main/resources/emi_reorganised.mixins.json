@@ -8,7 +8,8 @@
     "EmiSearchClearMixin",
     "SearchBarMixin",
     "EmiRolloutMixin",
-    "ScreenSpaceMixin"
+    "ScreenSpaceMixin",
+    "VerticalTabsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

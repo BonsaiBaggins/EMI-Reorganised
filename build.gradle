@@ -26,6 +26,12 @@ neoForge {
             gameDirectory = project.file('run')
             logLevel = org.slf4j.event.Level.INFO
         }
+        testWorld {
+            client()
+            gameDirectory = project.file('run')
+            programArguments.addAll '--quickPlaySingleplayer', 'New World'
+            logLevel = org.slf4j.event.Level.INFO
+        }
     }
 
     mods {

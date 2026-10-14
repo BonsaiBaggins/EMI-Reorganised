@@ -20,6 +20,13 @@ public final class Config {
             .comment("List items that aren't in any tab in an automatic 'Unsorted' tab.")
             .define("showUnsortedTab", true);
 
+    public static final ModConfigSpec.BooleanValue VERTICAL_TABS = BUILDER
+            .comment("Show a column of tab buttons on the outer edge of EMI's index sidebar.").define("verticalTabs", true);
+    public static final ModConfigSpec.IntValue TAB_SIZE = BUILDER
+            .comment("Size of each vertical tab button.").defineInRange("tabSize", 22, 16, 40);
+    public static final ModConfigSpec.IntValue TAB_SPACING = BUILDER
+            .comment("Gap between vertical tab buttons.").defineInRange("tabSpacing", 1, 0, 10);
+
     static {
         BUILDER.pop();
         BUILDER.comment("Buttons that roll EMI's left and right sidebars in and out.").push("sidebarButtons");
