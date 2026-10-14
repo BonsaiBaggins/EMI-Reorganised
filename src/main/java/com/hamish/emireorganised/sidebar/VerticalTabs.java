@@ -148,6 +148,14 @@ public final class VerticalTabs {
             boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
             int d = depth() + (selected || hover ? 2 : 0);
             int tx = left ? x + w - d : x;
+            if (!selected) {
+                // Unselected tabs sit behind the index frame: clip off the part that would overlap it.
+                if (left) {
+                    graphics.enableScissor(tx - 4, y - 4, edgeLeft, y + s + 4);
+                } else {
+                    graphics.enableScissor(edgeRight, y - 4, tx + d + 4, y + s + 4);
+                }
+            }
             var pose = graphics.pose();
             pose.pushPose();
             if (left) {
@@ -162,6 +170,9 @@ public final class VerticalTabs {
             int ix = tx + (d - 16) / 2 + (left ? -1 : 1);
             int iy = y + (s - 16) / 2;
             graphics.renderItem(entry.icon(), ix, iy);
+            if (!selected) {
+                graphics.disableScissor();
+            }
             if (hover) {
                 hovered = entry;
             }
