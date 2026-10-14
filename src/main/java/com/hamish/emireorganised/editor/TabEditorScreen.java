@@ -68,6 +68,7 @@ public class TabEditorScreen extends Screen {
     private boolean dragging;
     /** The open tab is also selected (blue), so Ctrl+C / Delete act on it. */
     private boolean tabSelected;
+    private int draggingBar;
     private static final ResourceLocation[] BANNER_ICONS = {
             ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/image.png"),
             ResourceLocation.fromNamespaceAndPath("emi_reorganised", "textures/gui/palette.png"),
@@ -600,7 +601,8 @@ public class TabEditorScreen extends Screen {
             int barH = Math.max(8, gridRows() * SLOT * gridRows() / rows);
             int barY = y0 + (gridRows() * SLOT - barH) * gridScroll / Math.max(1, rows - gridRows());
             int bx = x0 + gridCols() * SLOT + 1;
-            graphics.fill(bx, barY, bx + 2, barY + barH, 0xFFAAAAAA);
+            graphics.fill(bx, y0, bx + 2, y0 + gridRows() * SLOT, 0x40000000);
+            graphics.fill(bx, barY, bx + 2, barY + barH, draggingBar == 1 ? 0xFFFFFFFF : 0xFFAAAAAA);
         }
     }
 
@@ -668,6 +670,44 @@ public class TabEditorScreen extends Screen {
                 }
                 graphics.renderItem(list.get(index), px + c * SLOT + 1, py + r * SLOT + 1);
             }
+        }
+        renderPaletteBar(graphics, list.size(), cols, rows);
+    }
+
+    private void renderPaletteBar(GuiGraphics graphics, int size, int cols, int rows) {
+        int total = (size + cols - 1) / cols;
+        if (total <= rows) {
+            return;
+        }
+        int bx = width - 6;
+        int top = paletteY();
+        int h = rows * SLOT;
+        int barH = Math.max(8, h * rows / total);
+        int barY = top + (h - barH) * paletteScroll / Math.max(1, total - rows);
+        graphics.fill(bx, top, bx + 2, top + h, 0x40000000);
+        graphics.fill(bx, barY, bx + 2, barY + barH, draggingBar == 2 ? 0xFFFFFFFF : 0xFFAAAAAA);
+    }
+
+    /** 1 = central grid bar, 2 = item list bar; null-safe hit test for starting a drag. */
+    private int barAt(double mx, double my) {
+        int gx = gridX() + gridCols() * SLOT + 1;
+        if (mx >= gx - 1 && mx < gx + 4 && my >= gridY() && my < gridY() + gridRows() * SLOT && totalRows() > gridRows()) {
+            return 1;
+        }
+        if (!groupMode && mx >= width - 8 && mx < width - 2 && my >= paletteY() && my < paletteY() + paletteRows() * SLOT) {
+            return 2;
+        }
+        return 0;
+    }
+
+    private void dragBar(double my) {
+        if (draggingBar == 1) {
+            int max = Math.max(0, totalRows() - gridRows());
+            gridScroll = (int) Math.round(Math.max(0, Math.min(1, (my - gridY()) / (double) (gridRows() * SLOT))) * max);
+        } else if (draggingBar == 2) {
+            int cols = paletteCols();
+            int max = Math.max(0, (palette().size() + cols - 1) / cols - paletteRows());
+            paletteScroll = (int) Math.round(Math.max(0, Math.min(1, (my - paletteY()) / (double) (paletteRows() * SLOT))) * max);
         }
     }
 
@@ -787,6 +827,11 @@ public class TabEditorScreen extends Screen {
             return true;
         }
         setFocused(null);
+        if (button == 0 && barAt(mx, my) != 0) {
+            draggingBar = barAt(mx, my);
+            dragBar(my);
+            return true;
+        }
         if (button == 0 && overTabIcon(mx, my) && !model.creativeMode) {
             Tab tab = model.current();
             minecraft.setScreen(new IconPickerScreen(this, Component.translatable("emi_reorganised.editor.icon_title"), null, tab.icon, (name, icon) -> {
@@ -1045,6 +1090,10 @@ public class TabEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (draggingBar != 0) {
+            dragBar(my);
+            return true;
+        }
         if (pressTab >= 0 && !draggingTab && Math.abs(my - pressY) > 4) {
             draggingTab = true;
         }
@@ -1061,6 +1110,10 @@ public class TabEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         try {
+            if (draggingBar != 0) {
+                draggingBar = 0;
+                return true;
+            }
             if (draggingTab) {
                 dropTab(my);
                 return true;

@@ -26,8 +26,6 @@ import org.jetbrains.annotations.Nullable;
 public final class VerticalTabs {
     /** How far the tabs sit over (and below the top of) the sidebar, so the selected tab joins the vanilla frame. */
     private static final int OVERLAP = 3;
-    private static final ResourceLocation TAB = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
-    private static final ResourceLocation TAB_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
     private static final ResourceLocation SCROLL_UP = ResourceLocation.withDefaultNamespace("transferable_list/move_up");
     private static final ResourceLocation SCROLL_DOWN = ResourceLocation.withDefaultNamespace("transferable_list/move_down");
 
@@ -229,6 +227,11 @@ public final class VerticalTabs {
         if (extra > 0 && bounds.width() > extra) {
             bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() - extra, bounds.height());
         }
+        if (FavouriteSearch.enabled() && panel.supportsType(SidebarType.FAVORITES) && !panel.supportsType(SidebarType.INDEX)
+                && bounds.height() > 40) {
+            // Room above the favourites for their search bar, like EMI's search bar above the index.
+            bounds = new Bounds(bounds.x(), bounds.y() + 20, bounds.width(), bounds.height() - 20);
+        }
         Column column = columnFor(panel);
         int w = column != null ? column.width() : 0;
         if (column == null || bounds.width() <= w) {
@@ -256,7 +259,21 @@ public final class VerticalTabs {
         return size() + 4;
     }
 
+    private static String lastQuery = "";
+
     public static void render(GuiGraphics graphics, int mouseX, int mouseY) {
+        String query = EmiScreenManager.search != null ? EmiScreenManager.search.getValue() : "";
+        if (!query.isEmpty() && lastQuery.isEmpty() && Config.get(Config.SEARCH_SHOWS_ALL) && TabState.selected() != null) {
+            TabState.select(null);
+            IndexScroll.reset(SidebarType.INDEX);
+        }
+        lastQuery = query;
+        FavouriteSearch.beginFrame();
+        EmiScreenManager.SidebarPanel favourites = EmiScreenManager.getPanelFor(SidebarType.FAVORITES);
+        if (FavouriteSearch.enabled() && favourites != null && favourites.isVisible() && favourites.space != null
+                && favourites.getType() == SidebarType.FAVORITES) {
+            FavouriteSearch.render(graphics, favourites.space, favourites.getBounds().top() - 20, mouseX, mouseY, 0);
+        }
         for (Column column : COLUMNS) {
             render(column, graphics, menuTab >= 0 ? -1 : mouseX, mouseY);
         }
@@ -279,7 +296,9 @@ public final class VerticalTabs {
             edgeLeft = panel.space.tx - 9;
             edgeRight = panel.space.tx + panel.space.tw * 18 + 9 + IndexScroll.extraWidth(panel.getType());
         }
-        int x = (left ? edgeLeft - w + OVERLAP : edgeRight - OVERLAP) + 1;
+        // Tabs grow outwards from the frame's outer edge (their root); x/w only describe the clickable column.
+        int root = left ? edgeLeft : edgeRight;
+        int x = left ? root - w : root;
         int top = bounds.y() + OVERLAP;
         int step = s + spacing();
         List<Entry> entries = column.entries();
@@ -297,31 +316,17 @@ public final class VerticalTabs {
             boolean selected = i == selectedIndex;
             boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
             int d = depth() + (selected || hover ? 2 : 0);
-            int tx = left ? x + w - d : x;
+            int tx = left ? root - d : root;
             if (!selected) {
-                // Unselected tabs sit behind the sidebar frame: clip off the part that would overlap it.
+                // Unselected tabs sit behind the sidebar frame: clip at the frame edge.
                 if (left) {
-                    graphics.enableScissor(tx - 4, y - 4, edgeLeft, y + s + 4);
+                    graphics.enableScissor(root - d - 1, y - 1, root, y + s + 1);
                 } else {
-                    graphics.enableScissor(edgeRight, y - 4, tx + d + 4, y + s + 4);
+                    graphics.enableScissor(root, y - 1, root + d + 1, y + s + 1);
                 }
             }
-            var pose = graphics.pose();
-            pose.pushPose();
-            if (left) {
-                // Rotated and mirrored so the sprite's highlight ends up on top, as on the right side.
-                pose.translate(tx, y, 0);
-                pose.scale(-1, 1, 1);
-                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(90));
-                com.mojang.blaze3d.systems.RenderSystem.disableCull();
-            } else {
-                pose.translate(tx + d, y, 0);
-                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(90));
-            }
-            graphics.blitSprite(selected ? TAB_SELECTED : TAB, 0, 0, s, d);
-            com.mojang.blaze3d.systems.RenderSystem.enableCull();
-            pose.popPose();
-            int ix = tx + (d - 16) / 2 + (left ? -1 : 1);
+            drawTab(graphics, root, y, s, d, left, selected);
+            int ix = tx + (d - 16) / 2;
             int iy = y + (s - 16) / 2;
             if (entry.plus()) {
                 graphics.drawString(font, "+", ix + 8 - font.width("+") / 2, iy + 4, 0xFF404040, false);
@@ -343,6 +348,52 @@ public final class VerticalTabs {
         }
         if (hovered != null) {
             graphics.renderTooltip(font, hovered.name(), mouseX, mouseY);
+        }
+    }
+
+    private static final int OUTLINE = 0xFF000000;
+    private static final int FILL = 0xFFC6C6C6;
+    private static final int HIGHLIGHT = 0xFFFFFFFF;
+    private static final int SHADOW = 0xFF555555;
+    /** How far a tab's base reaches into the frame border, replacing its edge so the selected tab joins seamlessly. */
+    private static final int BASE = 6;
+
+    /**
+     * Draws a tab sticking {@code depth} px out of the frame edge at {@code root}, {@code length} px tall: light grey with
+     * a black outline and rounded outer corners, a 3px highlight on the top and left, a 3px shadow on the right and
+     * bottom. The base side has no outline and continues {@link #BASE} px into the frame.
+     */
+    private static void drawTab(GuiGraphics g, int root, int y, int length, int depth, boolean left, boolean selected) {
+        int x0 = left ? root - depth : root - BASE;
+        int x1 = left ? root + BASE : root + depth;
+        int y1 = y + length;
+        // Outer end (away from the frame) and the frame side's limits.
+        int outer0 = left ? x0 : x1 - 1;
+        int bodyL = left ? x0 + 1 : x0;
+        int bodyR = left ? x1 : x1 - 1;
+        g.fill(bodyL, y + 1, bodyR, y1 - 1, FILL);
+        // Highlight: top, plus the left side when the outer end faces left.
+        g.fill(bodyL, y + 1, bodyR - (left ? 0 : 1), y + 4, HIGHLIGHT);
+        if (left) {
+            g.fill(x0 + 1, y + 1, x0 + 4, y1 - 2, HIGHLIGHT);
+        }
+        // Shadow: bottom, plus the right side when the outer end faces right.
+        g.fill(bodyL + (left ? 1 : 0), y1 - 4, bodyR, y1 - 1, SHADOW);
+        if (!left) {
+            g.fill(x1 - 4, y + 2, x1 - 1, y1 - 1, SHADOW);
+        }
+        // Outline with rounded outer corners.
+        g.fill(bodyL, y, bodyR - (left ? 0 : 1), y + 1, OUTLINE);
+        g.fill(bodyL + (left ? 1 : 0), y1 - 1, bodyR - (left ? 0 : 1), y1, OUTLINE);
+        g.fill(outer0, y + 1, outer0 + 1, y1 - 1, OUTLINE);
+        int corner = left ? x0 + 1 : x1 - 2;
+        g.fill(corner, y + 1, corner + 1, y + 2, OUTLINE);
+        g.fill(corner, y1 - 2, corner + 1, y1 - 1, OUTLINE);
+        if (selected) {
+            // Inside the frame border the tab is plain frame grey, hiding the border's outline and shading.
+            int f0 = left ? root : root - BASE;
+            int f1 = left ? root + BASE : root;
+            g.fill(f0, y, f1, y1, FILL);
         }
     }
 

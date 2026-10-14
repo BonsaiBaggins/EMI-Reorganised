@@ -162,7 +162,7 @@ public final class Migration {
         String image = str(json, "image");
         banner.image = image != null ? copyImage(oldDir, image) : null;
         banner.colors = new BannerDef.Colors(integer(json, "titleColor"), integer(json, "titleSecondaryColor"),
-                integer(json, "titleBackground"), integer(json, "fillLeft"), integer(json, "fillRight"));
+                integer(json, "titleBackground"), integer(json, "fillLeft"), integer(json, "fillRight"), null, null);
 
         boolean end = json.has("end") && json.get("end").getAsBoolean();
         String before = json.has("before") && json.get("before").isJsonObject() ? str(json.getAsJsonObject("before"), "item") : null;

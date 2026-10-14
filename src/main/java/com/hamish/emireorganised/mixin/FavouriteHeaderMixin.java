@@ -2,27 +2,19 @@ package com.hamish.emireorganised.mixin;
 
 import com.hamish.emireorganised.sidebar.FavouriteSearch;
 import dev.emi.emi.config.SidebarType;
-import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.EmiScreenManager;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.objectweb.asm.Opcodes;
 
-/** The favourites sidebar shows our search bar where EMI draws its page header. */
-@Mixin(value = EmiScreenManager.SidebarPanel.class, remap = false)
+/** With the favourites search bar on, the favourites sidebar has no header (the bar sits above the panel instead). */
+@Mixin(value = EmiScreenManager.class, remap = false)
 public abstract class FavouriteHeaderMixin {
-    @Shadow public EmiScreenManager.ScreenSpace space;
-
-    @Shadow
-    public abstract SidebarType getType();
-
-    @Inject(method = "drawHeader", at = @At("HEAD"), cancellable = true)
-    private void emireorganised$searchInHeader(EmiDrawContext context, int mouseX, int mouseY, float delta, int a, int b, CallbackInfo ci) {
-        if (space != null && getType() == SidebarType.FAVORITES && FavouriteSearch.enabled()) {
-            FavouriteSearch.render(context.raw(), space, mouseX, mouseY, delta);
-            ci.cancel();
-        }
+    @Redirect(method = "createScreenSpace", at = @At(value = "FIELD", opcode = Opcodes.PUTFIELD,
+            target = "Ldev/emi/emi/screen/EmiScreenManager$SidebarPanel;header:Z"))
+    private static void emireorganised$noFavouritesHeader(EmiScreenManager.SidebarPanel panel, boolean header) {
+        panel.header = header && !(FavouriteSearch.enabled() && panel.supportsType(SidebarType.FAVORITES)
+                && !panel.supportsType(SidebarType.INDEX));
     }
 }

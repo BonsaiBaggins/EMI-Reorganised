@@ -122,7 +122,7 @@ public final class BannerRenderer {
         Source source = source(view);
         if (source == null) {
             graphics.fill(x, y, x + w, y + h, 0xFF8B8B8B);
-            fillHorizontalGradient(graphics, x + 1, y + 1, x + w - 1, y + h - 1, view.fillLeft(), view.fillRight());
+            DitherGradient.draw(graphics, x + 1, y + 1, x + w - 1, y + h - 1, view.fillColours());
             graphics.flush();
         } else {
             drawBackground(graphics, source, x, y, w, h);

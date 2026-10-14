@@ -34,11 +34,11 @@ import org.jetbrains.annotations.Nullable;
  */
 public class BannerPickerScreen extends EditorPopup {
     private static final int W = 320;
-    private static final int H = 306;
-    private static final int ROW = 34;
+    private static final int H = 284;
+    private static final int ROW = 26;
     private static final int ROWS = 4;
-    private static final int SV_W = 120;
-    private static final int SV_H = 44;
+    private static final int SV_W = 150;
+    private static final int SV_H = 64;
 
     private record Candidate(String name, ResourceLocation texture, DynamicTexture dynamic, int width, int frameHeight,
                              int frames, int frametime, @Nullable byte[] mcmeta) {
@@ -54,9 +54,9 @@ public class BannerPickerScreen extends EditorPopup {
     private int scroll;
     private float hue;
     private float sat;
-    private float val = 1;
-    private double strength;
+    private double hueShift = 0.5;
     private double saturation = 1;
+    private double brightness = 1;
     private boolean draggingSv;
     private boolean draggingHue;
     private EditBox hex;
@@ -113,15 +113,15 @@ public class BannerPickerScreen extends EditorPopup {
     }
 
     private int previewY() {
-        return listY() + ROWS * ROW + 16;
+        return listY() + ROWS * ROW + 14;
     }
 
     private int colourY() {
-        return previewY() + 40;
+        return previewY() + 28;
     }
 
     private int svX() {
-        return panelX() + 10;
+        return panelX() + W - 10 - SV_W;
     }
 
     private int hueY() {
@@ -129,7 +129,7 @@ public class BannerPickerScreen extends EditorPopup {
     }
 
     private int tint() {
-        return Mth.hsvToRgb(Mth.clamp(hue, 0, 0.999F), sat, val);
+        return Mth.hsvToRgb(Mth.clamp(hue, 0, 0.999F), sat, 1);
     }
 
     @Override
@@ -138,41 +138,12 @@ public class BannerPickerScreen extends EditorPopup {
             loaded = true;
             load();
         }
-        int x = svX() + SV_W + 10;
-        int sw = W - (x - panelX()) - 10;
-        addRenderableWidget(new AbstractSliderButton(x, colourY(), sw, 20, Component.empty(), strength) {
-            {
-                updateMessage();
-            }
-
-            @Override
-            protected void updateMessage() {
-                setMessage(Component.translatable("emi_reorganised.picker.strength", Math.round(value * 100)));
-            }
-
-            @Override
-            protected void applyValue() {
-                strength = value;
-                previewDirty = true;
-            }
-        });
-        addRenderableWidget(new AbstractSliderButton(x, colourY() + 22, sw, 20, Component.empty(), saturation / 2) {
-            {
-                updateMessage();
-            }
-
-            @Override
-            protected void updateMessage() {
-                setMessage(Component.translatable("emi_reorganised.picker.saturation", Math.round(value * 200)));
-            }
-
-            @Override
-            protected void applyValue() {
-                saturation = value * 2;
-                previewDirty = true;
-            }
-        });
-        hex = addRenderableWidget(new EditBox(font, x + 22, hueY() - 2, 56, 14, Component.empty()));
+        int x = panelX() + 10;
+        int sw = W - SV_W - 30;
+        addRenderableWidget(slider(x, colourY(), sw, hueShift, v -> hueShift = v, v -> Component.translatable("emi_reorganised.picker.hue", Math.round((v - 0.5) * 360))));
+        addRenderableWidget(slider(x, colourY() + 22, sw, saturation / 2, v -> saturation = v * 2, v -> Component.translatable("emi_reorganised.picker.saturation", Math.round(v * 200))));
+        addRenderableWidget(slider(x, colourY() + 44, sw, brightness / 2, v -> brightness = v * 2, v -> Component.translatable("emi_reorganised.picker.brightness", Math.round(v * 200))));
+        hex = addRenderableWidget(new EditBox(font, svX() + 22, hueY(), 56, 14, Component.empty()));
         hex.setMaxLength(6);
         hex.setValue(String.format(Locale.ROOT, "%06X", tint() & 0xFFFFFF));
         hex.setResponder(v -> {
@@ -184,7 +155,6 @@ public class BannerPickerScreen extends EditorPopup {
                 float[] hsb = java.awt.Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
                 hue = hsb[0];
                 sat = hsb[1];
-                val = hsb[2];
                 previewDirty = true;
             } catch (NumberFormatException ignored) {
             }
@@ -244,13 +214,29 @@ public class BannerPickerScreen extends EditorPopup {
                 Math.max(1, image.getHeight() / Math.max(1, frameHeight)), frametime, mcmeta));
     }
 
+    private AbstractSliderButton slider(int x, int y, int w, double value, java.util.function.DoubleConsumer apply,
+                                        java.util.function.DoubleFunction<Component> label) {
+        return new AbstractSliderButton(x, y, w, 20, label.apply(value), value) {
+            @Override
+            protected void updateMessage() {
+                setMessage(label.apply(this.value));
+            }
+
+            @Override
+            protected void applyValue() {
+                apply.accept(this.value);
+                previewDirty = true;
+            }
+        };
+    }
+
     private void done() {
         if (selected < 0) {
             return;
         }
         Candidate c = candidates.get(selected);
         try {
-            String file = BannerImageFiles.bake(banner, c.dynamic.getPixels(), c.mcmeta, tint(), (float) strength, (float) saturation);
+            String file = BannerImageFiles.bake(banner, c.dynamic.getPixels(), c.mcmeta, (float) (hueShift - 0.5), (float) saturation, (float) brightness, tint());
             minecraft.setScreen(parent);
             onDone.accept(file);
         } catch (Exception e) {
@@ -277,7 +263,7 @@ public class BannerPickerScreen extends EditorPopup {
             return;
         }
         previewDirty = false;
-        NativeImage processed = BannerImageFiles.process(candidates.get(selected).dynamic.getPixels(), tint(), (float) strength, (float) saturation);
+        NativeImage processed = BannerImageFiles.process(candidates.get(selected).dynamic.getPixels(), (float) (hueShift - 0.5), (float) saturation, (float) brightness, tint());
         if (preview != null) {
             minecraft.getTextureManager().release(previewId);
         }
@@ -306,8 +292,8 @@ public class BannerPickerScreen extends EditorPopup {
     }
 
     private void pickSv(double mx, double my) {
-        sat = Mth.clamp((float) (mx - svX()) / (SV_W - 1), 0, 1);
-        val = 1 - Mth.clamp((float) (my - colourY()) / (SV_H - 1), 0, 1);
+        hue = Mth.clamp((float) (mx - svX()) / (SV_W - 1), 0, 1);
+        sat = Mth.clamp((float) (my - colourY()) / (SV_H - 1), 0, 1);
         colourChanged();
     }
 
@@ -362,27 +348,19 @@ public class BannerPickerScreen extends EditorPopup {
             graphics.drawString(font, Component.translatable("emi_reorganised.picker.empty").withStyle(ChatFormatting.GRAY),
                     lx + 4, previewY() + 4, 0x808080);
         }
-        // Colour: saturation/value square for the current hue, with a hue bar below.
+        // Tint: hue across, saturation down (top = no tint). Applied last, by multiplying.
         int sx = svX();
         int sy = colourY();
         graphics.fill(sx - 1, sy - 1, sx + SV_W + 1, sy + SV_H + 1, 0xFF000000);
         for (int i = 0; i < SV_W; i++) {
-            int top = 0xFF000000 | Mth.hsvToRgb(Mth.clamp(hue, 0, 0.999F), i / (float) (SV_W - 1), 1);
-            graphics.fillGradient(sx + i, sy, sx + i + 1, sy + SV_H, top, 0xFF000000);
+            int bottom = 0xFF000000 | Mth.hsvToRgb(Mth.clamp(i / (float) (SV_W - 1), 0, 0.999F), 1, 1);
+            graphics.fillGradient(sx + i, sy, sx + i + 1, sy + SV_H, 0xFFFFFFFF, bottom);
         }
-        int mx = sx + Math.round(sat * (SV_W - 1));
-        int my = sy + Math.round((1 - val) * (SV_H - 1));
-        graphics.renderOutline(mx - 2, my - 2, 5, 5, val > 0.5F ? 0xFF000000 : 0xFFFFFFFF);
-        int hy = hueY();
-        graphics.fill(sx - 1, hy - 1, sx + SV_W + 1, hy + 9, 0xFF000000);
-        for (int i = 0; i < SV_W; i++) {
-            graphics.fill(sx + i, hy, sx + i + 1, hy + 8, 0xFF000000 | Mth.hsvToRgb(i / (float) SV_W, 1, 1));
-        }
-        int hx = sx + Math.round(Mth.clamp(hue, 0, 1) * (SV_W - 1));
-        graphics.renderOutline(hx - 1, hy - 2, 3, 12, 0xFFFFFFFF);
-        int bx = svX() + SV_W + 10;
-        graphics.fill(bx, hueY() - 2, bx + 16, hueY() + 12, 0xFF000000);
-        graphics.fill(bx + 1, hueY() - 1, bx + 15, hueY() + 11, 0xFF000000 | tint());
+        int mx = sx + Math.round(hue * (SV_W - 1));
+        int my = sy + Math.round(sat * (SV_H - 1));
+        graphics.renderOutline(mx - 2, my - 2, 5, 5, 0xFF000000);
+        graphics.fill(sx, hueY(), sx + 16, hueY() + 14, 0xFF000000);
+        graphics.fill(sx + 1, hueY() + 1, sx + 15, hueY() + 13, 0xFF000000 | tint());
         int hovered = rowAt(mouseX, mouseY);
         if (hovered >= 0) {
             graphics.renderTooltip(font, Component.literal(candidates.get(hovered).name), mouseX, mouseY);
@@ -401,11 +379,6 @@ public class BannerPickerScreen extends EditorPopup {
             if (overSv(mx, my)) {
                 draggingSv = true;
                 pickSv(mx, my);
-                return true;
-            }
-            if (overHue(mx, my)) {
-                draggingHue = true;
-                pickHue(mx);
                 return true;
             }
         }

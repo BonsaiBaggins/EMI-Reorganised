@@ -36,16 +36,7 @@ public final class BannerImageFiles {
         for (int i = 2; Files.exists(dir.resolve(file)); i++) {
             file = base + " (" + i + ").png";
         }
-        int left = banner.colors.left() != null ? banner.colors.left() : BannerView.DEFAULT_FILL;
-        int right = banner.colors.right() != null ? banner.colors.right() : BannerView.DEFAULT_FILL;
-        try (NativeImage image = new NativeImage(WIDTH, HEIGHT, false)) {
-            for (int x = 0; x < WIDTH; x++) {
-                float t = x / (float) (WIDTH - 1);
-                int argb = FastColor.ARGB32.lerp(t, left, right) | 0xFF000000;
-                for (int y = 0; y < HEIGHT; y++) {
-                    image.setPixelRGBA(x, y, FastColor.ABGR32.fromArgb32(argb));
-                }
-            }
+        try (NativeImage image = gradient(banner)) {
             image.writeToFile(dir.resolve(file));
         }
         BannerImages.bump();
@@ -57,11 +48,11 @@ public final class BannerImageFiles {
      * multiplied towards {@code tint} by {@code strength} (0 = untouched, 1 = fully tinted). Returns the file name.
      */
     public static String bake(BannerDef banner, NativeImage source, @org.jetbrains.annotations.Nullable byte[] mcmeta,
-                              int tint, float strength, float saturation) throws IOException {
+                              float hueShift, float saturation, float brightness, int tint) throws IOException {
         Path dir = dir();
         Files.createDirectories(dir);
         String file = freeName(dir, banner.name);
-        try (NativeImage image = process(source, tint, strength, saturation)) {
+        try (NativeImage image = process(source, hueShift, saturation, brightness, tint)) {
             image.writeToFile(dir.resolve(file));
         }
         if (mcmeta != null) {
@@ -75,22 +66,27 @@ public final class BannerImageFiles {
      * A new image: {@code source} with its saturation scaled ({@code 1} = unchanged, {@code 0} = grey), then multiplied
      * towards {@code tint} by {@code strength} ({@code 0} = untouched, {@code 1} = fully tinted).
      */
-    public static NativeImage process(NativeImage source, int tint, float strength, float saturation) {
-        float tr = 1 + (FastColor.ARGB32.red(tint) / 255F - 1) * strength;
-        float tg = 1 + (FastColor.ARGB32.green(tint) / 255F - 1) * strength;
-        float tb = 1 + (FastColor.ARGB32.blue(tint) / 255F - 1) * strength;
+    /**
+     * A new image: hue rotated by {@code hueShift} (fraction of a turn), saturation and brightness scaled ({@code 1} =
+     * unchanged), then multiplied by {@code tint} last (white = no tint).
+     */
+    public static NativeImage process(NativeImage source, float hueShift, float saturation, float brightness, int tint) {
+        float tr = FastColor.ARGB32.red(tint) / 255F;
+        float tg = FastColor.ARGB32.green(tint) / 255F;
+        float tb = FastColor.ARGB32.blue(tint) / 255F;
         NativeImage image = new NativeImage(source.getWidth(), source.getHeight(), false);
         image.copyFrom(source);
+        float[] hsb = new float[3];
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
                 int abgr = image.getPixelRGBA(x, y);
-                float r = abgr & 0xFF;
-                float g = (abgr >> 8) & 0xFF;
-                float b = (abgr >> 16) & 0xFF;
-                float grey = 0.299F * r + 0.587F * g + 0.114F * b;
-                r = (grey + (r - grey) * saturation) * tr;
-                g = (grey + (g - grey) * saturation) * tg;
-                b = (grey + (b - grey) * saturation) * tb;
+                java.awt.Color.RGBtoHSB(abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF, hsb);
+                float h = hsb[0] + hueShift;
+                h -= (float) Math.floor(h);
+                int rgb = java.awt.Color.HSBtoRGB(h, Math.min(1, hsb[1] * saturation), Math.min(1, hsb[2] * brightness));
+                float r = ((rgb >> 16) & 0xFF) * tr;
+                float g = ((rgb >> 8) & 0xFF) * tg;
+                float b = (rgb & 0xFF) * tb;
                 image.setPixelRGBA(x, y, (abgr & 0xFF000000) | clamp(b) << 16 | clamp(g) << 8 | clamp(r));
             }
         }
@@ -133,14 +129,14 @@ public final class BannerImageFiles {
             own.name = section.title().getString();
         }
         if (own.colors.equals(BannerDef.Colors.NONE)) {
-            own.colors = new BannerDef.Colors(section.color(), section.secondaryColor(), section.background(), null, null);
+            own.colors = new BannerDef.Colors(section.color(), section.secondaryColor(), section.background(), null, null, null, null);
         }
         if (own.image == null) {
             ResourceLocation texture = spriteTexture(section.sprite());
             var resource = net.minecraft.client.Minecraft.getInstance().getResourceManager().getResource(texture);
             if (resource.isPresent()) {
                 try (java.io.InputStream in = resource.get().open(); NativeImage art = NativeImage.read(in)) {
-                    own.image = bake(own, art, readMeta(texture), 0xFFFFFF, 0, 1);
+                    own.image = bake(own, art, readMeta(texture), 0, 1, 1, 0xFFFFFF);
                 } catch (IOException e) {
                     EmiReorganised.LOGGER.warn("Couldn't copy banner art {}", texture, e);
                 }
@@ -151,17 +147,8 @@ public final class BannerImageFiles {
 
     /** Writes a gradient from the banner's fallback colours, without writing it to disk. */
     public static NativeImage gradient(BannerDef banner) {
-        int left = banner.colors.left() != null ? banner.colors.left() : BannerView.DEFAULT_FILL;
-        int right = banner.colors.right() != null ? banner.colors.right() : BannerView.DEFAULT_FILL;
-        NativeImage image = new NativeImage(WIDTH, HEIGHT, false);
-        for (int x = 0; x < WIDTH; x++) {
-            float t = x / (float) (WIDTH - 1);
-            int argb = FastColor.ARGB32.lerp(t, left, right) | 0xFF000000;
-            for (int y = 0; y < HEIGHT; y++) {
-                image.setPixelRGBA(x, y, FastColor.ABGR32.fromArgb32(argb));
-            }
-        }
-        return image;
+        BannerView view = BannerView.custom(banner.name, null).with(banner.colors);
+        return com.hamish.emireorganised.port.DitherGradient.image(view.fillColours(), WIDTH, com.hamish.emireorganised.port.DitherGradient.HEIGHT);
     }
 
     private static String freeName(Path dir, String name) {

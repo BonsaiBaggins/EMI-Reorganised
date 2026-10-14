@@ -70,13 +70,13 @@ public final class FavouriteSearch {
         return box;
     }
 
-    /** Draws the bar over the header row of the favourites panel (EMI's header is skipped). */
-    public static void render(GuiGraphics graphics, EmiScreenManager.ScreenSpace space, int mouseX, int mouseY, float delta) {
+    /** Draws the bar above the favourites panel (whose header is turned off). */
+    public static void render(GuiGraphics graphics, EmiScreenManager.ScreenSpace space, int y, int mouseX, int mouseY, float delta) {
         EditBox b = box();
         b.setX(space.tx);
-        b.setY(space.ty - 18);
+        b.setY(y);
         b.setWidth(Math.max(10, space.tw * 18));
-        b.setHeight(16);
+        b.setHeight(18);
         b.render(graphics, mouseX, mouseY, delta);
         shown = true;
     }

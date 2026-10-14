@@ -26,7 +26,8 @@ public final class BannerDef {
 
     /** ARGB colours; null means the default. */
     public record Colors(@Nullable Integer title, @Nullable Integer outline, @Nullable Integer titleBackground,
-                         @Nullable Integer left, @Nullable Integer right) {
-        public static final Colors NONE = new Colors(null, null, null, null, null);
+                         @Nullable Integer left, @Nullable Integer right,
+                         @Nullable Integer mid1, @Nullable Integer mid2) {
+        public static final Colors NONE = new Colors(null, null, null, null, null, null, null);
     }
 }

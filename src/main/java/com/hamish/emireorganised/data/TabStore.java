@@ -282,6 +282,8 @@ public final class TabStore {
         putColor(json, "titleBackground", c.titleBackground());
         putColor(json, "fillLeft", c.left());
         putColor(json, "fillRight", c.right());
+        putColor(json, "fillMid1", c.mid1());
+        putColor(json, "fillMid2", c.mid2());
         return json;
     }
 
@@ -291,7 +293,7 @@ public final class TabStore {
         banner.section = json.has("section") ? ResourceLocation.tryParse(json.get("section").getAsString()) : null;
         banner.image = json.has("image") ? json.get("image").getAsString() : null;
         banner.colors = new BannerDef.Colors(color(json, "titleColor"), color(json, "outlineColor"), color(json, "titleBackground"),
-                color(json, "fillLeft"), color(json, "fillRight"));
+                color(json, "fillLeft"), color(json, "fillRight"), color(json, "fillMid1"), color(json, "fillMid2"));
         return banner;
     }
 

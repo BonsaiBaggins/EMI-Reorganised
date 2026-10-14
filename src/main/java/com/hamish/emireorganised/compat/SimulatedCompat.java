@@ -99,7 +99,7 @@ public final class SimulatedCompat {
             int dark = title.secondaryColor().orElse(title.color().darken(0.2F, new foundry.veil.api.client.color.Color())).argb();
             Component text = name != null && !name.isEmpty() ? Component.literal(name) : title.text();
             return new BannerView(text, light, dark, title.background().argb(), section.sprite(), image,
-                    image != null || section.animateOnHover(), BannerView.DEFAULT_FILL, BannerView.DEFAULT_FILL);
+                    image != null || section.animateOnHover(), BannerView.DEFAULT_LEFT, BannerView.DEFAULT_FILL, null, null);
         }
     }
 }

@@ -98,7 +98,7 @@
   "emi_reorganised.picker.strength": "Tint strength: %s%%",
   "emi_reorganised.picker.preview": "Preview",
   "emi_reorganised.picker.empty": "No banner images found",
-  "emi_reorganised.picker.tint_tip": "Tint colour (RRGGBB). The tint is saved into the new image file and can't be changed later",
+  "emi_reorganised.picker.tint_tip": "Tint colour (RRGGBB), applied last. Saved into the new image file; it can't be changed later",
   "emi_reorganised.background.title": "Edit Background",
   "emi_reorganised.background.replace": "Replace background",
   "emi_reorganised.background.delete": "Delete image",
@@ -116,5 +116,9 @@
   "emi_reorganised.fav.delete": "Delete tab",
   "emi_reorganised.fav.icon_title": "Choose a tab icon",
   "emi_reorganised.fav.search": "Search...",
-  "emi_reorganised.config.favourites": "Favourites"
+  "emi_reorganised.config.favourites": "Favourites",
+  "emi_reorganised.colors.mid1": "Intermediate 1",
+  "emi_reorganised.colors.mid2": "Intermediate 2",
+  "emi_reorganised.picker.hue": "Hue: %s°",
+  "emi_reorganised.picker.brightness": "Brightness: %s%%"
 }

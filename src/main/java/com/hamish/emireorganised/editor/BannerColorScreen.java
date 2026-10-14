@@ -14,15 +14,15 @@ import net.minecraft.util.Mth;
 
 /** Picks a banner's two title colours and its two fallback background gradient colours. */
 public class BannerColorScreen extends EditorPopup {
-    private static final String[] KEYS = {"title", "secondary", "background", "fill_left", "fill_right"};
+    private static final String[] KEYS = {"title", "secondary", "background", "fill_left", "mid1", "mid2", "fill_right"};
     private static final int W = 260;
-    private static final int H = 196;
+    private static final int H = 222;
     private static final int SV_W = 120;
     private static final int SV_H = 60;
 
     private final BannerView base;
     private final Consumer<BannerDef.Colors> onDone;
-    private final Integer[] values = new Integer[5];
+    private final Integer[] values = new Integer[KEYS.length];
     private final int[] defaults;
     private int active;
     private float hue;
@@ -38,12 +38,14 @@ public class BannerColorScreen extends EditorPopup {
         super(parent, Component.translatable("emi_reorganised.colors"));
         this.onDone = onDone;
         this.base = base;
-        this.defaults = new int[] {base.color(), base.secondaryColor(), base.titleBackground(), base.fillLeft(), base.fillRight()};
+        this.defaults = new int[] {base.color(), base.secondaryColor(), base.titleBackground(), base.fillLeft(), 0, 0, base.fillRight()};
         values[0] = current.title();
         values[1] = current.outline();
         values[2] = current.titleBackground();
         values[3] = current.left();
-        values[4] = current.right();
+        values[4] = current.mid1();
+        values[5] = current.mid2();
+        values[6] = current.right();
     }
 
     @Override
@@ -75,11 +77,15 @@ public class BannerColorScreen extends EditorPopup {
     }
 
     private int value(int i) {
+        if (values[i] == null && (i == 4 || i == 5)) {
+            // Automatic intermediates: thirds between the end colours.
+            return net.minecraft.util.FastColor.ARGB32.lerp(i == 4 ? 1 / 3F : 2 / 3F, value(3), value(6));
+        }
         return values[i] != null ? values[i] : defaults[i];
     }
 
     private BannerDef.Colors colors() {
-        return new BannerDef.Colors(values[0], values[1], values[2], values[3], values[4]);
+        return new BannerDef.Colors(values[0], values[1], values[2], values[3], values[6], values[4], values[5]);
     }
 
     @Override
@@ -104,13 +110,13 @@ public class BannerColorScreen extends EditorPopup {
         addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.colors.default"), b -> {
             values[active] = null;
             select(active);
-        }).bounds(x + 10, y + 170, 76, 20).build());
+        }).bounds(x + 10, y + H - 26, 76, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
-                .bounds(x + 92, y + 170, 76, 20).build());
+                .bounds(x + 92, y + H - 26, 76, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> {
             onDone.accept(colors());
             onClose();
-        }).bounds(x + 174, y + 170, 76, 20).build());
+        }).bounds(x + 174, y + H - 26, 76, 20).build());
         select(active);
     }
 
@@ -173,7 +179,7 @@ public class BannerColorScreen extends EditorPopup {
         BannerRenderer.drawBanner(graphics, base.with(colors()), x + 10, y + 20, W - 20, BannerRenderer.ROW);
 
         for (int i = 0; i < KEYS.length; i++) {
-            int ry = y + 46 + i * 22;
+            int ry = y + 46 + i * 20;
             boolean over = mouseX >= x + 10 && mouseX < x + 125 && mouseY >= ry && mouseY < ry + 20;
             if (i == active) {
                 graphics.fill(x + 10, ry, x + 125, ry + 20, 0xFF3A6EA5);
@@ -222,7 +228,7 @@ public class BannerColorScreen extends EditorPopup {
         int y = top();
         if (button == 0) {
             for (int i = 0; i < KEYS.length; i++) {
-                int ry = y + 46 + i * 22;
+                int ry = y + 46 + i * 20;
                 if (mouseX >= x + 10 && mouseX < x + 125 && mouseY >= ry && mouseY < ry + 20) {
                     select(i);
                     return true;

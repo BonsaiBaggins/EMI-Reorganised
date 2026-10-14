@@ -78,6 +78,8 @@ public final class Config {
     public static final ModConfigSpec.EnumValue<SearchBarPosition> SEARCH_BAR_POSITION = BUILDER
             .comment("Where EMI's search bar sits. DEFAULT is EMI's own spot (screen centre). ABOVE_INDEX and BELOW_INDEX attach it to the index and shrink the index to fit.")
             .defineEnum("searchBarPosition", SearchBarPosition.ABOVE_INDEX);
+    public static final ModConfigSpec.BooleanValue SEARCH_SHOWS_ALL = BUILDER
+            .comment("Switch the index to the 'Search All' tab when you start typing a search.").define("searchShowsAll", true);
     public static final ModConfigSpec.BooleanValue SEARCH_CLEAR_BUTTON = BUILDER
             .comment("Show an 'x' inside the search bar that clears it while it has text.").define("clearButton", true);
 
