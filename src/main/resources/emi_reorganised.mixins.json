@@ -3,7 +3,12 @@
   "minVersion": "0.8",
   "package": "com.hamish.emireorganised.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": [],
+  "client": [
+    "EmiExclusionAreasMixin",
+    "EmiSearchClearMixin",
+    "SearchBarMixin",
+    "EmiRolloutMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
