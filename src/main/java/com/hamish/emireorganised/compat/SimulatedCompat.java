@@ -33,7 +33,18 @@ public final class SimulatedCompat {
         }
     }
 
+    /** The Simulated section an item belongs to, or null. */
+    @Nullable
+    public static ResourceLocation sectionOf(net.minecraft.world.item.Item item) {
+        return isLoaded() ? Impl.sectionOf(item) : null;
+    }
+
     private static final class Impl {
+        @Nullable
+        static ResourceLocation sectionOf(net.minecraft.world.item.Item item) {
+            return dev.simulated_team.simulated.registrate.SimulatedRegistrate.sectionOf(item);
+        }
+
         static void setPlaying(ResourceLocation sprite, boolean playing) {
             dev.simulated_team.simulated.registrate.simulated_tab.SimulatedCreativeTab.setPlaying(sprite, playing);
         }

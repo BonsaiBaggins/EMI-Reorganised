@@ -80,6 +80,9 @@ public final class TabStore {
             tabs = snapshot(registries);
             save();
         }
+        if (Migration.run(tabs)) {
+            save();
+        }
         version++;
     }
 
