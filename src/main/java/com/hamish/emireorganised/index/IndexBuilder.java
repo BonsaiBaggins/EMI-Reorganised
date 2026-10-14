@@ -79,7 +79,11 @@ public final class IndexBuilder {
                         }
                     }
                     case TabEntry.Item item -> add(out, seen, allowed, item.stack());
-                    case TabEntry.Group group -> group.group().items.forEach(stack -> add(out, seen, allowed, stack));
+                    case TabEntry.Group group -> {
+                        for (ItemStack stack : group.group().items) {
+                            add(out, seen, allowed, stack);
+                        }
+                    }
                 }
             }
         }
