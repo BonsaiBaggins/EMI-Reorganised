@@ -73,6 +73,15 @@ public final class IndexBuilder {
         String selected = TabState.selected();
         List<Object> out = new ArrayList<>();
         Set<EmiStack> seen = new HashSet<>();
+        if (TabState.UNSORTED.equals(selected)) {
+            Set<EmiStack> sorted = sortedStacks();
+            for (EmiIngredient ingredient : original) {
+                if (ingredient instanceof EmiStack stack && !sorted.contains(stack) && seen.add(stack)) {
+                    out.add(stack);
+                }
+            }
+            return out;
+        }
         for (Tab tab : TabStore.tabs()) {
             if (tab.hidden || selected != null && !selected.equals(tab.id)) {
                 continue;
@@ -144,6 +153,28 @@ public final class IndexBuilder {
             out.addAll(shown);
             members.addAll(shown);
         }
+    }
+
+    /** Every stack listed in one of our visible tabs, loose or in a group. */
+    private static Set<EmiStack> sortedStacks() {
+        Set<EmiStack> out = new HashSet<>();
+        for (Tab tab : TabStore.tabs()) {
+            if (tab.hidden) {
+                continue;
+            }
+            for (TabEntry entry : tab.entries) {
+                if (entry instanceof TabEntry.Item item && !item.stack().isEmpty()) {
+                    out.add(EmiStack.of(item.stack()));
+                } else if (entry instanceof TabEntry.Group group) {
+                    for (ItemStack stack : group.group().items) {
+                        if (!stack.isEmpty()) {
+                            out.add(EmiStack.of(stack));
+                        }
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     public static boolean isGroupMember(EmiIngredient ingredient) {

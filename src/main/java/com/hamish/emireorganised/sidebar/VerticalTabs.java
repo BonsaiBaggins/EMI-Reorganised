@@ -82,6 +82,9 @@ public final class VerticalTabs {
                 out.add(new Entry(tab.id, Component.literal(tab.name), tab.icon.isEmpty() ? new ItemStack(Items.BARRIER) : tab.icon));
             }
         }
+        if (Config.get(Config.SHOW_UNSORTED)) {
+            out.add(new Entry(TabState.UNSORTED, Component.translatable("emi_reorganised.tab.unsorted"), new ItemStack(Items.CHEST)));
+        }
         return out;
     }
 
