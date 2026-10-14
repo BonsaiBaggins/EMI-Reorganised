@@ -66,6 +66,20 @@ public final class OpenEditorButton extends Button {
         }
     }
 
+    /** Moves the right sidebar's left edge past the button when they would overlap. */
+    public static Bounds avoid(dev.emi.emi.screen.EmiScreenManager.SidebarPanel panel, Bounds bounds) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (panel.side != dev.emi.emi.config.SidebarSide.RIGHT || !(screen instanceof AbstractContainerScreen<?> container)
+                || !applies(container) || !shown()) {
+            return bounds;
+        }
+        int edge = container.getGuiLeft() + container.getXSize() + 2 + SIZE + 2;
+        if (bounds.x() >= edge || bounds.right() <= edge) {
+            return bounds;
+        }
+        return new Bounds(edge, bounds.y(), bounds.right() - edge, bounds.height());
+    }
+
     /** Keeps EMI's sidebars clear of the button. */
     public static void exclusion(Screen screen, Consumer<Bounds> consumer) {
         if (screen instanceof AbstractContainerScreen<?> container && applies(container) && shown()) {

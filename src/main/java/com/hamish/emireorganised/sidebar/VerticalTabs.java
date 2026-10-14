@@ -60,6 +60,7 @@ public final class VerticalTabs {
 
     /** Called while EMI builds the index sidebar: takes the tab column's room from the outer edge. */
     public static Bounds reserve(EmiScreenManager.SidebarPanel panel, Bounds bounds) {
+        bounds = com.hamish.emireorganised.editor.OpenEditorButton.avoid(panel, bounds);
         if (!enabled() || !panel.supportsType(SidebarType.INDEX) || bounds.width() <= width()) {
             return bounds;
         }
@@ -118,7 +119,13 @@ public final class VerticalTabs {
         int s = size();
         int w = width();
         boolean left = leftOfIndex();
-        int x = (left ? bounds.x() - w : bounds.right()) + slideOffset;
+        int edgeLeft = bounds.x();
+        int edgeRight = bounds.right();
+        if (panel.theme == dev.emi.emi.config.SidebarTheme.VANILLA && panel.space != null) {
+            edgeLeft = panel.space.tx - 9;
+            edgeRight = panel.space.tx + panel.space.tw * 18 + 9;
+        }
+        int x = (left ? edgeLeft - w : edgeRight) + slideOffset;
         int top = bounds.y();
         int step = s + spacing();
         List<Entry> entries = entries();
