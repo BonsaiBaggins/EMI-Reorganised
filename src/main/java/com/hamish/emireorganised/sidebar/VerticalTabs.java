@@ -369,7 +369,10 @@ public final class VerticalTabs {
             graphics.blitSprite(SCROLL_DOWN, ax, top + bounds.height() - 26, 32, 32);
         }
         if (hovered != null) {
-            graphics.renderTooltip(font, hovered.name(), mouseX, mouseY);
+            // EMI's own tooltip renderer: vanilla's draws an empty box at this point of EMI's render.
+            dev.emi.emi.EmiRenderHelper.drawTooltip(Minecraft.getInstance().screen, dev.emi.emi.runtime.EmiDrawContext.wrap(graphics),
+                    List.of(net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent.create(hovered.name().getVisualOrderText())),
+                    mouseX, mouseY);
         }
     }
 
