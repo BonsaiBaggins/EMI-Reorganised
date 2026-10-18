@@ -15,7 +15,8 @@
     "SidebarBackgroundMixin",
     "FavouriteHeaderMixin",
     "SchematicFavouriteMixin",
-    "SchematicFavouritesMixin"
+    "SchematicFavouritesMixin",
+    "InventoryScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
