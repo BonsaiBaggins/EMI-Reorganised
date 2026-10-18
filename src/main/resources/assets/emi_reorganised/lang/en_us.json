@@ -125,7 +125,6 @@
   "emi_reorganised.editor.redo": "Redo (Ctrl+Y)",
   "emi_reorganised.editor.groups_expand": "Expand Groups",
   "emi_reorganised.editor.groups_collapse": "Collapse Groups",
-  "emi_reorganised.editor.find": "Search tab...",
   "emi_reorganised.editor.filter": "Show items",
   "emi_reorganised.editor.filter.all": "All",
   "emi_reorganised.editor.filter.unsorted": "Unsorted",
@@ -133,5 +132,10 @@
   "emi_reorganised.group.sort": "Sort Items",
   "emi_reorganised.group.sort.alphabetical": "Alphabetical",
   "emi_reorganised.group.sort.default": "Default",
-  "emi_reorganised.group.sort.mod": "Mod"
+  "emi_reorganised.group.sort.mod_alphabetical": "Mod / Alphabetical",
+  "emi_reorganised.group.sort.mod_default": "Mod / Default",
+  "emi_reorganised.editor.in_tabs": "Tabs: %s",
+  "emi_reorganised.editor.in_tabs.none": "Unsorted",
+  "emi_reorganised.schematic.unreadable": "Couldn't read the material list of %s",
+  "emi_reorganised.editor.find": "Search tab..."
 }

@@ -266,7 +266,7 @@ public class TabEditorScreen extends Screen {
         tabFind.setValue(find);
         tabFind.setHint(Component.translatable("emi_reorganised.editor.find").withStyle(ChatFormatting.DARK_GRAY));
         tabFind.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.group.regex_help")));
-        tabFind.setResponder(v -> scrollToFirstMatch());
+        tabFind.setResponder(v -> gridScroll = 0);
         addRenderableWidget(tabFind);
         refreshName();
 
@@ -509,55 +509,19 @@ public class TabEditorScreen extends Screen {
         };
     }
 
-    private void scrollToFirstMatch() {
-        String q = findQuery();
-        if (q.isEmpty()) {
-            return;
-        }
-        for (Cell cell : buildCells()) {
-            if (cell.kind() != Kind.BANNER && cellMatches(cell, q)) {
-                scrollTo = cell.ref();
-                return;
-            }
-        }
-    }
-
-    /** Selects every item (and group) in the open tab that matches the tab search. */
-    private void selectMatches() {
-        String q = findQuery();
-        if (q.isEmpty()) {
-            return;
-        }
-        model.selection.clear();
-        tabSelected = false;
-        for (Cell cell : buildCells()) {
-            if (cell.kind() != Kind.BANNER && cellMatches(cell, q)) {
-                model.selection.add(cell.ref());
-            }
-        }
-    }
-
-    private void renderFindDim(GuiGraphics graphics) {
-        String q = findQuery();
-        if (q.isEmpty()) {
-            return;
-        }
-        int top = gridY();
-        int bottom = gridY() + gridRows() * SLOT;
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 250);
-        for (Cell cell : cells) {
-            if (cell.y() >= top && cell.y() + SLOT <= bottom && !cellMatches(cell, q)) {
-                graphics.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + SLOT, 0xB0202020);
-            }
-        }
-        graphics.pose().popPose();
+    private static boolean onSlotBorder(double dx, double dy) {
+        double x = ((dx % SLOT) + SLOT) % SLOT;
+        double y = ((dy % SLOT) + SLOT) % SLOT;
+        return x < 1 || x >= SLOT - 1 || y < 1 || y >= SLOT - 1;
     }
 
     private int paletteIndexAt(double mx, double my) {
         int px = paletteX() + 4;
         int py = paletteY();
         if (groupMode || mx < px || my < py || mx >= px + paletteCols() * SLOT || my >= py + paletteRows() * SLOT) {
+            return -1;
+        }
+        if (onSlotBorder(mx - px, my - py)) {
             return -1;
         }
         int index = (paletteScroll + (int) ((my - py) / SLOT)) * paletteCols() + (int) ((mx - px) / SLOT);
@@ -586,6 +550,43 @@ public class TabEditorScreen extends Screen {
             return out;
         }
         return List.of(pressPalette);
+    }
+
+    /** The group's first few distinct items, for its stacked icon. */
+    private static List<ItemStack> cascade(ItemGroup group) {
+        List<ItemStack> layers = new ArrayList<>();
+        ItemStack icon = group.displayIcon();
+        if (!icon.isEmpty()) {
+            layers.add(icon);
+        }
+        for (ItemStack stack : group.items) {
+            if (layers.size() >= 3) {
+                break;
+            }
+            if (!stack.isEmpty() && layers.stream().noneMatch(l -> ItemStack.isSameItemSameComponents(l, stack))) {
+                layers.add(stack);
+            }
+        }
+        return layers;
+    }
+
+    /** Names of the user's tabs listing the item, loose or in a group. */
+    private List<String> tabsContaining(ItemStack stack) {
+        List<String> out = new ArrayList<>();
+        for (Tab t : model.tabs) {
+            boolean found = false;
+            for (TabEntry e : t.entries) {
+                if (e instanceof TabEntry.Item item && ItemStack.isSameItemSameComponents(item.stack(), stack)
+                        || e instanceof TabEntry.Group g && g.group().items.stream().anyMatch(st -> ItemStack.isSameItemSameComponents(st, stack))) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                out.add(t.name);
+            }
+        }
+        return out;
     }
 
     private void startBox(int mode, double mx, double my) {
@@ -651,6 +652,7 @@ public class TabEditorScreen extends Screen {
         int cols = gridCols();
         int col = 0;
         int row = 0;
+        String q = findQuery();
         for (int i = 0; i < entries.size(); i++) {
             TabEntry entry = entries.get(i);
             switch (entry) {
@@ -663,6 +665,9 @@ public class TabEditorScreen extends Screen {
                     row++;
                 }
                 case TabEntry.Item item -> {
+                    if (!q.isEmpty() && !EditorSearch.matches(q, item.stack())) {
+                        continue;
+                    }
                     out.add(new Cell(EditorModel.Ref.of(i), gridX() + col * SLOT, rowY(row), SLOT, Kind.ITEM, item.stack(), entry));
                     if (++col >= cols) {
                         col = 0;
@@ -671,6 +676,10 @@ public class TabEditorScreen extends Screen {
                 }
                 case TabEntry.Group group -> {
                     ItemGroup g = group.group();
+                    boolean nameMatch = q.isEmpty() || EditorSearch.matches(q, g.name);
+                    if (!nameMatch && g.items.stream().noneMatch(st -> EditorSearch.matches(q, st))) {
+                        continue;
+                    }
                     out.add(new Cell(EditorModel.Ref.of(i), gridX() + col * SLOT, rowY(row), SLOT, Kind.GROUP, g.displayIcon(), entry));
                     if (++col >= cols) {
                         col = 0;
@@ -678,6 +687,9 @@ public class TabEditorScreen extends Screen {
                     }
                     if (model.isOpen(g)) {
                         for (int m = 0; m < g.items.size(); m++) {
+                            if (!nameMatch && !EditorSearch.matches(q, g.items.get(m))) {
+                                continue;
+                            }
                             out.add(new Cell(new EditorModel.Ref(i, m), gridX() + col * SLOT, rowY(row), SLOT, Kind.MEMBER, g.items.get(m), entry));
                             if (++col >= cols) {
                                 col = 0;
@@ -717,6 +729,9 @@ public class TabEditorScreen extends Screen {
         int px = paletteX() + 4;
         int py = paletteY();
         if (groupMode || mx < px || my < py || mx >= px + paletteCols() * SLOT || my >= py + paletteRows() * SLOT) {
+            return null;
+        }
+        if (onSlotBorder(mx - px, my - py)) {
             return null;
         }
         int index = (paletteScroll + (int) ((my - py) / SLOT)) * paletteCols() + (int) ((mx - px) / SLOT);
@@ -762,7 +777,6 @@ public class TabEditorScreen extends Screen {
         renderTabs(graphics, mouseX, mouseY);
         renderGrid(graphics, mouseX, mouseY);
         renderPalette(graphics, mouseX, mouseY);
-        renderFindDim(graphics);
         renderBox(graphics);
     }
 
@@ -845,7 +859,11 @@ public class TabEditorScreen extends Screen {
             if (cell.contains(mouseX, mouseY) && menu == null) {
                 graphics.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, 0x60FFFFFF);
             }
-            graphics.renderItem(cell.stack(), x + 1, y + 1);
+            if (cell.kind() == Kind.GROUP) {
+                com.hamish.emireorganised.index.GroupIngredient.drawCascade(graphics, cascade(((TabEntry.Group) cell.entry()).group()), x + 1, y + 1);
+            } else {
+                graphics.renderItem(cell.stack(), x + 1, y + 1);
+            }
             if (cell.kind() == Kind.GROUP) {
                 ItemGroup g = ((TabEntry.Group) cell.entry()).group();
                 graphics.renderOutline(x, y, SLOT, SLOT, GROUP_FRAME);
@@ -931,8 +949,12 @@ public class TabEditorScreen extends Screen {
                 if (index >= list.size()) {
                     return;
                 }
+                int sx = px + c * SLOT;
+                int sy = py + r * SLOT;
+                graphics.fill(sx, sy, sx + SLOT, sy + SLOT, 0xFF373737);
+                graphics.fill(sx + 1, sy + 1, sx + SLOT - 1, sy + SLOT - 1, 0xFF8B8B8B);
                 if (paletteSelection.contains(index)) {
-                    graphics.fill(px + c * SLOT, py + r * SLOT, px + c * SLOT + SLOT, py + r * SLOT + SLOT, SELECT_ITEM);
+                    graphics.fill(sx + 1, sy + 1, sx + SLOT - 1, sy + SLOT - 1, SELECT_ITEM);
                 }
                 graphics.renderItem(list.get(index), px + c * SLOT + 1, py + r * SLOT + 1);
             }
@@ -979,6 +1001,7 @@ public class TabEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        model.nextFrame();
         for (Button b : editButtons) {
             b.active = !model.creativeMode;
         }
@@ -1055,7 +1078,11 @@ public class TabEditorScreen extends Screen {
             } else {
                 ItemStack stack = paletteAt(mouseX, mouseY);
                 if (stack != null) {
-                    graphics.renderTooltip(font, stack, mouseX, mouseY);
+                    List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, stack));
+                    List<String> in = tabsContaining(stack);
+                    lines.add(in.isEmpty() ? Component.translatable("emi_reorganised.editor.in_tabs.none").withStyle(ChatFormatting.GRAY)
+                            : Component.translatable("emi_reorganised.editor.in_tabs", String.join(", ", in)).withStyle(ChatFormatting.GRAY));
+                    graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
                 }
             }
         }
@@ -1120,7 +1147,10 @@ public class TabEditorScreen extends Screen {
             return true;
         }
         tabSelected = false;
-        Cell cell = cellAt(mx, my);
+        Cell hit = cellAt(mx, my);
+        // The dark border around a slot counts as empty space, so a box selection can start there.
+        Cell cell = hit != null && button == 0 && adding == null && hit.kind() != Kind.BANNER
+                && onSlotBorder(mx - hit.x(), my - hit.y()) ? null : hit;
         if (button == 0) {
             GroupRef groupRef = groupAt(mx, my);
             if (adding != null) {
@@ -1165,16 +1195,18 @@ public class TabEditorScreen extends Screen {
             }
             if (cell == null) {
                 if (inGrid(mx, my)) {
-                    if (!hasControlDown()) {
+                    if (!hasShiftDown() && !hasControlDown()) {
                         model.selection.clear();
                     }
+                    paletteSelection.clear();
                     startBox(1, mx, my);
                     return true;
                 }
                 if (inPalette(mx, my)) {
-                    if (!hasControlDown()) {
+                    if (!hasShiftDown() && !hasControlDown()) {
                         paletteSelection.clear();
                     }
+                    model.selection.clear();
                     startBox(2, mx, my);
                     return true;
                 }
@@ -1541,7 +1573,8 @@ public class TabEditorScreen extends Screen {
             }
         }
         if (getFocused() == tabFind && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
-            selectMatches();
+            tabFind.setFocused(false);
+            setFocused(null);
             return true;
         }
         boolean typing = getFocused() instanceof EditBox;

@@ -96,7 +96,7 @@ public final class Config {
 
     public static final ModConfigSpec.BooleanValue SURVIVAL_INVENTORY_IN_CREATIVE = BUILDER
             .comment("In creative mode, open the survival inventory instead of the creative inventory.")
-            .define("survivalInventoryInCreative", false);
+            .define("survivalInventoryInCreative", true);
 
     static {
         BUILDER.pop();

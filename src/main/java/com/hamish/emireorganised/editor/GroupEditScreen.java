@@ -24,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 /** Edits a group's name, its optional regex/tag, and its item list (drag to reorder, right-click to remove). */
 public class GroupEditScreen extends EditorPopup {
     private static final int W = 300;
-    private static final int H = 240;
+    private static final int H = 252;
     private static final int SLOT = 18;
     private static final int COLS = 15;
     private static final int ROWS = 5;
@@ -47,7 +47,7 @@ public class GroupEditScreen extends EditorPopup {
     private java.util.Map<TagKey<Item>, Integer> tagCounts = java.util.Map.of();
     private Button sortButton;
     private boolean sortOpen;
-    private static final String[] SORTS = {"alphabetical", "default", "mod"};
+    private static final String[] SORTS = {"alphabetical", "default", "mod_alphabetical", "mod_default"};
     private int scroll;
     private int dragFrom = -1;
     private boolean dragging;
@@ -100,7 +100,7 @@ public class GroupEditScreen extends EditorPopup {
     }
 
     private int gridY() {
-        return top() + 124;
+        return top() + 136;
     }
 
     @Override
@@ -215,10 +215,18 @@ public class GroupEditScreen extends EditorPopup {
                 items.sort(java.util.Comparator.<ItemStack>comparingInt(s -> order.getOrDefault(s.getItem(), Integer.MAX_VALUE))
                         .thenComparingInt(s -> BuiltInRegistries.ITEM.getId(s.getItem())));
             }
-            default -> items.sort(java.util.Comparator.<ItemStack, Boolean>comparing(
-                            s -> !BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace().equals("minecraft"))
-                    .thenComparing(s -> modName(BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace()))
-                    .thenComparing(byName));
+            default -> {
+                java.util.Comparator<ItemStack> byMod = java.util.Comparator.<ItemStack, Boolean>comparing(
+                                s -> !BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace().equals("minecraft"))
+                        .thenComparing(s -> modName(BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace()));
+                if (mode == 2) {
+                    items.sort(byMod.thenComparing(byName));
+                } else {
+                    java.util.Map<Item, Integer> order = creativeOrder();
+                    items.sort(byMod.thenComparingInt(s -> order.getOrDefault(s.getItem(), Integer.MAX_VALUE))
+                            .thenComparingInt(s -> BuiltInRegistries.ITEM.getId(s.getItem())));
+                }
+            }
         }
         scroll = 0;
     }

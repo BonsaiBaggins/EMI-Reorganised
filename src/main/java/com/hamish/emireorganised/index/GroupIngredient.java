@@ -107,10 +107,19 @@ public final class GroupIngredient implements EmiIngredient {
                 layers.add(stack);
             }
         }
-        if (layers.size() == 1) {
-            graphics.renderItem(icon, x, y);
+        drawCascade(graphics, layers, x, y);
+    }
+
+    /** Draws up to three items as a stack: the first in front at the top left, the rest behind towards the bottom right. */
+    public static void drawCascade(GuiGraphics graphics, List<ItemStack> layers, int x, int y) {
+        if (layers.isEmpty()) {
             return;
         }
+        if (layers.size() == 1) {
+            graphics.renderItem(layers.getFirst(), x, y);
+            return;
+        }
+        layers = layers.subList(0, Math.min(3, layers.size()));
         float scale = 0.75f;
         float step = (16 - 16 * scale) / (layers.size() - 1);
         var pose = graphics.pose();

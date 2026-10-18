@@ -51,8 +51,17 @@ public final class CreateSchematics {
         }
         ItemStack stack = slot.getItem();
         Map<Item, Integer> required = materials(level, stack);
+        var server = Minecraft.getInstance().getSingleplayerServer();
+        if (required.isEmpty() && server != null) {
+            // Singleplayer: the uploaded copy the server keeps.
+            required = materials(server.overworld(), stack);
+        }
         if (required.isEmpty()) {
-            return false;
+            if (Minecraft.getInstance().player != null) {
+                Minecraft.getInstance().player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                        "emi_reorganised.schematic.unreadable", stack.getHoverName()), true);
+            }
+            return true;
         }
         FavouriteTabs.addSchematic(stack.getHoverName().getString(), stack, required);
         return true;

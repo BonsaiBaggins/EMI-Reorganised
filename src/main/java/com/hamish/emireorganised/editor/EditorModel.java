@@ -92,6 +92,13 @@ public final class EditorModel {
     /** The tabs as they were after the last recorded change: what an undo goes back to. */
     private List<Tab> lastState = List.of();
     @Nullable private String lastKey;
+    /** Changes made during the same editor frame (one click, key press or popup confirmation) are one undo step. */
+    private int frame;
+    private int lastPushFrame = -1;
+
+    public void nextFrame() {
+        frame++;
+    }
 
     private List<Tab> snapshot() {
         return tabs.stream().map(Tab::copy).toList();
@@ -104,7 +111,8 @@ public final class EditorModel {
     public void markDirty(@Nullable String key) {
         dirty = true;
         version++;
-        if (key == null || !key.equals(lastKey)) {
+        if (key != null ? !key.equals(lastKey) : frame != lastPushFrame) {
+            lastPushFrame = frame;
             undo.push(lastState);
             while (undo.size() > HISTORY) {
                 undo.removeLast();
@@ -150,6 +158,7 @@ public final class EditorModel {
         tab = Math.min(tab, Math.max(0, tabs.size() - 1));
         selection.clear();
         lastKey = null;
+        lastPushFrame = -1;
         lastState = snapshot();
         dirty = true;
         version++;

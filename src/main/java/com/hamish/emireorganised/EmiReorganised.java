@@ -48,7 +48,8 @@ public final class EmiReorganised {
                 event.setCanceled(true);
             }
         });
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(net.neoforged.bus.api.EventPriority.HIGHEST,
+                (net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
             if (event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_A && net.neoforged.fml.ModList.get().isLoaded("create")
                     && com.hamish.emireorganised.compat.CreateSchematics.tryAddHovered(event.getScreen())) {
                 event.setCanceled(true);

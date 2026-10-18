@@ -16,7 +16,8 @@
     "FavouriteHeaderMixin",
     "SchematicFavouriteMixin",
     "SchematicFavouritesMixin",
-    "InventoryScreenMixin"
+    "InventoryScreenMixin",
+    "SchematicKeyMixin"
   ],
   "injectors": {
     "defaultRequire": 1
