@@ -86,7 +86,7 @@ public class IconPickerScreen extends EditorPopup {
             setInitialFocus(nameBox);
             y += 24;
         }
-        searchBox = new EditBox(font, x, y, initialName != null ? w : w - 22, 18, Component.translatable("emi_reorganised.editor.search"));
+        searchBox = new EditorSearch.ClearableBox(font, x, y, initialName != null ? w : w - 22, 18, Component.translatable("emi_reorganised.editor.search"));
         searchBox.setHint(Component.translatable("emi_reorganised.editor.search").withStyle(ChatFormatting.DARK_GRAY));
         addRenderableWidget(searchBox);
         if (initialName == null) {

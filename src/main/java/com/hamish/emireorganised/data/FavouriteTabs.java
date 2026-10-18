@@ -29,7 +29,13 @@ public final class FavouriteTabs {
         public ItemStack icon = ItemStack.EMPTY;
         ItemStack autoIcon = ItemStack.EMPTY;
         JsonArray favourites = new JsonArray();
+        /** Name of the schematic for a read-only schematic material list tab, else null. */
+        @org.jetbrains.annotations.Nullable public String schematic;
+        public final java.util.LinkedHashMap<net.minecraft.world.item.Item, Integer> required = new java.util.LinkedHashMap<>();
     }
+
+    /** Lets our own code fill a read-only tab's favourites. */
+    public static boolean bypassReadOnly;
 
     private static final List<FavTab> TABS = new ArrayList<>();
     private static int selected = -1;
@@ -69,6 +75,16 @@ public final class FavouriteTabs {
                         tab.icon = item(t, "icon");
                         tab.autoIcon = item(t, "autoIcon");
                         tab.favourites = t.has("favourites") ? t.getAsJsonArray("favourites") : new JsonArray();
+                        if (t.has("schematic")) {
+                            JsonObject sch = t.getAsJsonObject("schematic");
+                            tab.schematic = sch.get("name").getAsString();
+                            for (var item : sch.getAsJsonObject("items").entrySet()) {
+                                ResourceLocation id = ResourceLocation.tryParse(item.getKey());
+                                if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
+                                    tab.required.put(BuiltInRegistries.ITEM.get(id), item.getValue().getAsInt());
+                                }
+                            }
+                        }
                         TABS.add(tab);
                     }
                     selected = json.has("selected") ? json.get("selected").getAsInt() : 0;
@@ -175,6 +191,52 @@ public final class FavouriteTabs {
         changed();
     }
 
+    /** Moves a tab to a new position, keeping the same tab selected. */
+    public static void move(int from, int to) {
+        ensureLoaded();
+        if (from < 0 || from >= TABS.size() || to < 0 || to >= TABS.size() || from == to) {
+            return;
+        }
+        sync();
+        FavTab current = selected >= 0 ? TABS.get(selected) : null;
+        TABS.add(to, TABS.remove(from));
+        selected = current != null ? TABS.indexOf(current) : selected;
+        changed();
+    }
+
+    /** The selected tab if it's a schematic material list, else null. */
+    @org.jetbrains.annotations.Nullable
+    public static FavTab selectedSchematic() {
+        ensureLoaded();
+        return selected >= 0 && selected < TABS.size() && TABS.get(selected).schematic != null ? TABS.get(selected) : null;
+    }
+
+    public static boolean readOnly() {
+        return !bypassReadOnly && selectedSchematic() != null;
+    }
+
+    /** Adds and selects a read-only tab listing a schematic's materials. */
+    public static void addSchematic(String name, ItemStack icon, java.util.Map<net.minecraft.world.item.Item, Integer> required) {
+        ensureLoaded();
+        sync();
+        FavTab tab = new FavTab();
+        tab.schematic = name;
+        tab.icon = icon.copyWithCount(1);
+        tab.required.putAll(required);
+        TABS.add(tab);
+        selected = TABS.size() - 1;
+        EmiFavorites.load(new JsonArray());
+        bypassReadOnly = true;
+        try {
+            for (net.minecraft.world.item.Item item : required.keySet()) {
+                EmiFavorites.addFavorite(dev.emi.emi.api.stack.EmiStack.of(item));
+            }
+        } finally {
+            bypassReadOnly = false;
+        }
+        changed();
+    }
+
     public static void setIcon(int i, ItemStack icon) {
         ensureLoaded();
         if (i >= 0 && i < TABS.size()) {
@@ -204,6 +266,14 @@ public final class FavouriteTabs {
                 t.addProperty("autoIcon", BuiltInRegistries.ITEM.getKey(tab.autoIcon.getItem()).toString());
             }
             t.add("favourites", tab.favourites);
+            if (tab.schematic != null) {
+                JsonObject sch = new JsonObject();
+                sch.addProperty("name", tab.schematic);
+                JsonObject items = new JsonObject();
+                tab.required.forEach((item, n) -> items.addProperty(BuiltInRegistries.ITEM.getKey(item).toString(), n));
+                sch.add("items", items);
+                t.add("schematic", sch);
+            }
             tabs.add(t);
         }
         json.add("tabs", tabs);

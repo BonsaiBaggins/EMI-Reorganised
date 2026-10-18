@@ -98,6 +98,23 @@ public class TabEditorScreen extends Screen {
     @Nullable private String groupQuery;
     @Nullable private GroupRef pressGroup;
     @Nullable private EditorModel.Ref scrollTo;
+    private Button undoButton;
+    private Button redoButton;
+    private Button groupsToggle;
+    private Button filterButton;
+    private EditBox tabFind;
+    private enum PaletteFilter { ALL, UNSORTED, DUPLICATES }
+    private PaletteFilter paletteFilter = PaletteFilter.ALL;
+    private final java.util.TreeSet<Integer> paletteSelection = new java.util.TreeSet<>();
+    private int paletteAnchor = -1;
+    private int pressPaletteIndex = -1;
+    /** Box selection: 0 = none, 1 = centre grid, 2 = item list. */
+    private int boxMode;
+    private double boxX0;
+    private double boxY0;
+    private double boxX1;
+    private double boxY1;
+    @Nullable private static List<ItemStack> allStacks;
 
     private record GroupRef(int tab, int entry, ItemGroup group) {
     }
@@ -110,7 +127,7 @@ public class TabEditorScreen extends Screen {
     // ---- layout ----
 
     private int paletteW() {
-        int cols = Math.max(4, Math.min(9, (width - LEFT_W - 200) / SLOT / 2));
+        int cols = Math.max(5, Math.min(9, (width - LEFT_W - 200) / SLOT / 2));
         return cols * SLOT + 8;
     }
 
@@ -162,12 +179,18 @@ public class TabEditorScreen extends Screen {
             model.reload();
             refreshName();
         }).bounds(right - 188, 4, 60, 20).build());
+        undoButton = addRenderableWidget(Button.builder(Component.literal("\u2190"), b -> undo()).bounds(right - 236, 4, 20, 20).build());
+        undoButton.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.undo")));
+        redoButton = addRenderableWidget(Button.builder(Component.literal("\u2192"), b -> redo()).bounds(right - 212, 4, 20, 20).build());
+        redoButton.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.redo")));
         int bx = gridX();
         int bottomY = height - 22;
         for (Button button : List.of(
                 Button.builder(Component.translatable("emi_reorganised.editor.add_banner"), b -> addBanner()).build(),
-                Button.builder(Component.translatable("emi_reorganised.editor.groups_toggle"), b -> model.setAllOpen(!model.anyOpen())).build())) {
-            int w = font.width(button.getMessage()) + 12;
+                (groupsToggle = Button.builder(Component.translatable("emi_reorganised.editor.groups_expand"),
+                        b -> model.setAllOpen(!model.anyOpen())).build()))) {
+            int w = Math.max(font.width(button.getMessage()), button == groupsToggle
+                    ? font.width(Component.translatable("emi_reorganised.editor.groups_collapse")) : 0) + 12;
             button.setRectangle(w, 20, bx, bottomY);
             editButtons.add(addRenderableWidget(button));
             bx += w + 4;
@@ -201,7 +224,7 @@ public class TabEditorScreen extends Screen {
         }).bounds(4, by + 22, LEFT_W - 4, 20).build()));
 
         String tabQuery = tabSearch != null ? tabSearch.getValue() : "";
-        tabSearch = new EditBox(font, 4, TOP + 22, LEFT_W - 4, 18, Component.empty());
+        tabSearch = new EditorSearch.ClearableBox(font, 4, TOP + 22, LEFT_W - 4, 18, Component.empty());
         tabSearch.setValue(tabQuery);
         tabSearch.setHint(Component.translatable("emi_reorganised.editor.search_tabs").withStyle(ChatFormatting.DARK_GRAY));
         tabSearch.setResponder(v -> tabScroll = 0);
@@ -226,20 +249,29 @@ public class TabEditorScreen extends Screen {
             }
         }).bounds(paletteX() + 4 + gw, height - 26, gw, 20).build());
 
-        nameBox = new EditBox(font, gridX() + 22, TOP, gridCols() * SLOT - 22, 18, Component.empty());
+        int nameW = (gridCols() * SLOT - 22) / 2;
+        nameBox = new EditBox(font, gridX() + 22, TOP, nameW, 18, Component.empty());
         nameBox.setMaxLength(64);
         nameBox.setResponder(value -> {
             Tab t = model.current();
             if (t != null && !value.equals(t.name)) {
                 t.name = value;
-                model.markDirty();
+                model.markDirty("name:" + t.id);
             }
         });
         addRenderableWidget(nameBox);
+        String find = tabFind != null ? tabFind.getValue() : "";
+        int fx = gridX() + 22 + nameW + 4;
+        tabFind = new EditorSearch.ClearableBox(font, fx, TOP, gridX() + gridCols() * SLOT - fx, 18, Component.empty());
+        tabFind.setValue(find);
+        tabFind.setHint(Component.translatable("emi_reorganised.editor.find").withStyle(ChatFormatting.DARK_GRAY));
+        tabFind.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.group.regex_help")));
+        tabFind.setResponder(v -> scrollToFirstMatch());
+        addRenderableWidget(tabFind);
         refreshName();
 
         String query = searchBox != null ? searchBox.getValue() : "";
-        searchBox = new EditBox(font, paletteX(), TOP + 22, paletteW(), 18, Component.empty());
+        searchBox = new EditorSearch.ClearableBox(font, paletteX(), TOP + 22, paletteW(), 18, Component.empty());
         searchBox.setValue(query);
         updateSearchHint();
         addRenderableWidget(searchBox);
@@ -250,6 +282,10 @@ public class TabEditorScreen extends Screen {
         }).bounds(paletteX() + paletteW() - 20, TOP - 1, 20, 20).build();
         swap.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.swap")));
         addRenderableWidget(swap);
+        filterButton = Button.builder(Component.literal("\u2261"), b -> showMenu(filterMenu(), b.getX(), b.getY() + 20))
+                .bounds(paletteX() + paletteW() - 42, TOP - 1, 20, 20).build();
+        filterButton.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("emi_reorganised.editor.filter")));
+        addRenderableWidget(filterButton);
     }
 
     private void refreshName() {
@@ -364,24 +400,249 @@ public class TabEditorScreen extends Screen {
     }
 
     private List<ItemStack> palette() {
-        String query = searchBox == null ? "" : searchBox.getValue().trim().toLowerCase(Locale.ROOT);
-        if (!query.equals(paletteQuery)) {
-            paletteQuery = query;
-            paletteScroll = 0;
+        String query = searchBox == null ? "" : searchBox.getValue().trim();
+        String base = query + "\u0000" + paletteFilter + "\u0000";
+        String key = base + (paletteFilter == PaletteFilter.ALL ? 0 : model.version);
+        if (!key.equals(paletteQuery)) {
+            if (paletteQuery == null || !paletteQuery.startsWith(base)) {
+                paletteScroll = 0;
+            }
+            paletteQuery = key;
+            paletteSelection.clear();
+            paletteAnchor = -1;
+            java.util.Map<dev.emi.emi.api.stack.EmiStack, Integer> counts = paletteFilter == PaletteFilter.ALL ? null : tabCounts();
             List<ItemStack> out = new ArrayList<>();
-            for (Item item : BuiltInRegistries.ITEM) {
-                if (item == Items.AIR) {
-                    continue;
+            for (ItemStack stack : allStacks()) {
+                if (counts != null) {
+                    int n = counts.getOrDefault(dev.emi.emi.api.stack.EmiStack.of(stack), 0);
+                    if (paletteFilter == PaletteFilter.UNSORTED ? n != 0 : n < 2) {
+                        continue;
+                    }
                 }
-                ItemStack stack = item.getDefaultInstance();
-                if (query.isEmpty() || stack.getHoverName().getString().toLowerCase(Locale.ROOT).contains(query)
-                        || BuiltInRegistries.ITEM.getKey(item).toString().contains(query)) {
+                if (EditorSearch.matches(query, stack)) {
                     out.add(stack);
                 }
             }
             palette = out;
         }
         return palette;
+    }
+
+    /** Every item EMI lists (including variants such as potions), then any other registered items. */
+    private static List<ItemStack> allStacks() {
+        if (allStacks == null || allStacks.isEmpty()) {
+            List<ItemStack> out = new ArrayList<>();
+            java.util.Set<Item> seen = new java.util.HashSet<>();
+            List<dev.emi.emi.api.stack.EmiStack> emi = dev.emi.emi.registry.EmiStackList.stacks;
+            if (emi != null) {
+                for (dev.emi.emi.api.stack.EmiStack stack : emi) {
+                    ItemStack item = stack.getItemStack();
+                    if (!item.isEmpty() && stack.getKey() instanceof Item) {
+                        out.add(item.copyWithCount(1));
+                        seen.add(item.getItem());
+                    }
+                }
+            }
+            for (Item item : BuiltInRegistries.ITEM) {
+                if (item != Items.AIR && seen.add(item)) {
+                    out.add(item.getDefaultInstance());
+                }
+            }
+            allStacks = out;
+        }
+        return allStacks;
+    }
+
+    /** In how many of the user's tabs each item appears. */
+    private java.util.Map<dev.emi.emi.api.stack.EmiStack, Integer> tabCounts() {
+        java.util.Map<dev.emi.emi.api.stack.EmiStack, Integer> counts = new java.util.HashMap<>();
+        for (Tab t : model.tabs) {
+            java.util.Set<dev.emi.emi.api.stack.EmiStack> inTab = new java.util.HashSet<>();
+            for (TabEntry e : t.entries) {
+                if (e instanceof TabEntry.Item item && !item.stack().isEmpty()) {
+                    inTab.add(dev.emi.emi.api.stack.EmiStack.of(item.stack()));
+                } else if (e instanceof TabEntry.Group g) {
+                    for (ItemStack stack : g.group().items) {
+                        if (!stack.isEmpty()) {
+                            inTab.add(dev.emi.emi.api.stack.EmiStack.of(stack));
+                        }
+                    }
+                }
+            }
+            inTab.forEach(st -> counts.merge(st, 1, Integer::sum));
+        }
+        return counts;
+    }
+
+    private List<MenuItem> filterMenu() {
+        List<MenuItem> out = new ArrayList<>();
+        for (PaletteFilter f : PaletteFilter.values()) {
+            Component label = Component.literal(f == paletteFilter ? "\u2714 " : "    ")
+                    .append(Component.translatable("emi_reorganised.editor.filter." + f.name().toLowerCase(Locale.ROOT)));
+            out.add(new MenuItem(label, () -> paletteFilter = f, true));
+        }
+        return out;
+    }
+
+    private void undo() {
+        model.undo();
+        refreshName();
+    }
+
+    private void redo() {
+        model.redo();
+        refreshName();
+    }
+
+    private String findQuery() {
+        return tabFind == null ? "" : tabFind.getValue().trim();
+    }
+
+    private boolean cellMatches(Cell cell, String query) {
+        return switch (cell.kind()) {
+            case ITEM, MEMBER -> EditorSearch.matches(query, cell.stack());
+            case GROUP -> {
+                ItemGroup g = ((TabEntry.Group) cell.entry()).group();
+                yield EditorSearch.matches(query, g.name) || g.items.stream().anyMatch(st -> EditorSearch.matches(query, st));
+            }
+            case BANNER -> EditorSearch.matches(query, ((TabEntry.Banner) cell.entry()).banner().name);
+        };
+    }
+
+    private void scrollToFirstMatch() {
+        String q = findQuery();
+        if (q.isEmpty()) {
+            return;
+        }
+        for (Cell cell : buildCells()) {
+            if (cell.kind() != Kind.BANNER && cellMatches(cell, q)) {
+                scrollTo = cell.ref();
+                return;
+            }
+        }
+    }
+
+    /** Selects every item (and group) in the open tab that matches the tab search. */
+    private void selectMatches() {
+        String q = findQuery();
+        if (q.isEmpty()) {
+            return;
+        }
+        model.selection.clear();
+        tabSelected = false;
+        for (Cell cell : buildCells()) {
+            if (cell.kind() != Kind.BANNER && cellMatches(cell, q)) {
+                model.selection.add(cell.ref());
+            }
+        }
+    }
+
+    private void renderFindDim(GuiGraphics graphics) {
+        String q = findQuery();
+        if (q.isEmpty()) {
+            return;
+        }
+        int top = gridY();
+        int bottom = gridY() + gridRows() * SLOT;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 250);
+        for (Cell cell : cells) {
+            if (cell.y() >= top && cell.y() + SLOT <= bottom && !cellMatches(cell, q)) {
+                graphics.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + SLOT, 0xB0202020);
+            }
+        }
+        graphics.pose().popPose();
+    }
+
+    private int paletteIndexAt(double mx, double my) {
+        int px = paletteX() + 4;
+        int py = paletteY();
+        if (groupMode || mx < px || my < py || mx >= px + paletteCols() * SLOT || my >= py + paletteRows() * SLOT) {
+            return -1;
+        }
+        int index = (paletteScroll + (int) ((my - py) / SLOT)) * paletteCols() + (int) ((mx - px) / SLOT);
+        return index >= 0 && index < palette().size() ? index : -1;
+    }
+
+    private boolean inPalette(double mx, double my) {
+        int px = paletteX() + 4;
+        int py = paletteY();
+        return !groupMode && mx >= px && my >= py && mx < px + paletteCols() * SLOT && my < py + paletteRows() * SLOT;
+    }
+
+    /** The palette items being dragged: the whole palette selection if the pressed item is part of it. */
+    private List<ItemStack> draggedPalette() {
+        if (pressPalette == null) {
+            return List.of();
+        }
+        List<ItemStack> list = palette();
+        if (paletteSelection.contains(pressPaletteIndex) && paletteSelection.size() > 1) {
+            List<ItemStack> out = new ArrayList<>();
+            for (int i : paletteSelection) {
+                if (i < list.size()) {
+                    out.add(list.get(i));
+                }
+            }
+            return out;
+        }
+        return List.of(pressPalette);
+    }
+
+    private void startBox(int mode, double mx, double my) {
+        boxMode = mode;
+        boxX0 = boxX1 = mx;
+        boxY0 = boxY1 = my;
+    }
+
+    private void finishBox() {
+        double x0 = Math.min(boxX0, boxX1);
+        double x1 = Math.max(boxX0, boxX1);
+        double y0 = Math.min(boxY0, boxY1);
+        double y1 = Math.max(boxY0, boxY1);
+        if (x1 - x0 < 3 && y1 - y0 < 3) {
+            return;
+        }
+        if (boxMode == 1) {
+            tabSelected = false;
+            int top = gridY();
+            int bottom = gridY() + gridRows() * SLOT;
+            for (Cell cell : cells) {
+                if (cell.y() + SLOT > top && cell.y() < bottom && cell.x() < x1 && cell.x() + cell.w() > x0
+                        && cell.y() < y1 && cell.y() + SLOT > y0) {
+                    model.selection.add(cell.ref());
+                }
+            }
+        } else if (boxMode == 2) {
+            int px = paletteX() + 4;
+            int py = paletteY();
+            int cols = paletteCols();
+            int size = palette().size();
+            for (int r = 0; r < paletteRows(); r++) {
+                for (int c = 0; c < cols; c++) {
+                    int index = (paletteScroll + r) * cols + c;
+                    int sx = px + c * SLOT;
+                    int sy = py + r * SLOT;
+                    if (index < size && sx < x1 && sx + SLOT > x0 && sy < y1 && sy + SLOT > y0) {
+                        paletteSelection.add(index);
+                    }
+                }
+            }
+        }
+    }
+
+    private void renderBox(GuiGraphics graphics) {
+        if (boxMode == 0) {
+            return;
+        }
+        int x0 = (int) Math.min(boxX0, boxX1);
+        int y0 = (int) Math.min(boxY0, boxY1);
+        int x1 = (int) Math.max(boxX0, boxX1);
+        int y1 = (int) Math.max(boxY0, boxY1);
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 300);
+        graphics.fill(x0, y0, x1, y1, 0x304C8CFF);
+        graphics.renderOutline(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0), 0xFF4C8CFF);
+        graphics.pose().popPose();
     }
 
     private List<Cell> buildCells() {
@@ -501,6 +762,8 @@ public class TabEditorScreen extends Screen {
         renderTabs(graphics, mouseX, mouseY);
         renderGrid(graphics, mouseX, mouseY);
         renderPalette(graphics, mouseX, mouseY);
+        renderFindDim(graphics);
+        renderBox(graphics);
     }
 
     private void renderTabs(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -668,6 +931,9 @@ public class TabEditorScreen extends Screen {
                 if (index >= list.size()) {
                     return;
                 }
+                if (paletteSelection.contains(index)) {
+                    graphics.fill(px + c * SLOT, py + r * SLOT, px + c * SLOT + SLOT, py + r * SLOT + SLOT, SELECT_ITEM);
+                }
                 graphics.renderItem(list.get(index), px + c * SLOT + 1, py + r * SLOT + 1);
             }
         }
@@ -720,12 +986,17 @@ public class TabEditorScreen extends Screen {
         groupDelete.visible = groupMode;
         groupNew.active = !model.creativeMode && model.current() != null;
         groupDelete.active = selectedListGroup() != null;
+        undoButton.active = model.canUndo();
+        redoButton.active = model.canRedo();
+        filterButton.visible = !groupMode;
+        groupsToggle.setMessage(Component.translatable(model.anyOpen() ? "emi_reorganised.editor.groups_collapse"
+                : "emi_reorganised.editor.groups_expand"));
         super.render(graphics, mouseX, mouseY, partialTick);
         Tab t = model.current();
         Component title = adding != null
                 ? Component.translatable("emi_reorganised.editor.adding").withStyle(s -> s.withColor(0xC080FF))
                 : Component.translatable("emi_reorganised.editor.title").append(model.dirty() ? " *" : "");
-        int titleW = Math.max(40, width - 4 - 188 - 8 - gridX());
+        int titleW = Math.max(40, width - 4 - 236 - 8 - gridX());
         if (font.width(title) > titleW) {
             graphics.pose().pushPose();
             float scale = titleW / (float) font.width(title);
@@ -748,7 +1019,7 @@ public class TabEditorScreen extends Screen {
         }
         if (dragging) {
             List<ItemStack> ghost = pressGroup != null ? List.of(pressGroup.group().displayIcon())
-                    : pressPalette != null ? List.of(pressPalette) : model.selectedStacks();
+                    : pressPalette != null ? draggedPalette() : model.selectedStacks();
             if (!ghost.isEmpty()) {
                 graphics.pose().pushPose();
                 graphics.pose().translate(0, 0, 300);
@@ -870,6 +1141,23 @@ public class TabEditorScreen extends Screen {
             }
             ItemStack pal = paletteAt(mx, my);
             if (pal != null) {
+                int pi = paletteIndexAt(mx, my);
+                if (hasControlDown()) {
+                    if (!paletteSelection.remove(pi)) {
+                        paletteSelection.add(pi);
+                    }
+                    paletteAnchor = pi;
+                } else if (hasShiftDown() && paletteAnchor >= 0) {
+                    paletteSelection.clear();
+                    for (int k = Math.min(paletteAnchor, pi); k <= Math.max(paletteAnchor, pi); k++) {
+                        paletteSelection.add(k);
+                    }
+                } else if (!paletteSelection.contains(pi)) {
+                    paletteSelection.clear();
+                    paletteSelection.add(pi);
+                    paletteAnchor = pi;
+                }
+                pressPaletteIndex = pi;
                 pressPalette = pal;
                 pressX = mx;
                 pressY = my;
@@ -877,9 +1165,20 @@ public class TabEditorScreen extends Screen {
             }
             if (cell == null) {
                 if (inGrid(mx, my)) {
-                    model.selection.clear();
+                    if (!hasControlDown()) {
+                        model.selection.clear();
+                    }
+                    startBox(1, mx, my);
+                    return true;
                 }
-                return inGrid(mx, my);
+                if (inPalette(mx, my)) {
+                    if (!hasControlDown()) {
+                        paletteSelection.clear();
+                    }
+                    startBox(2, mx, my);
+                    return true;
+                }
+                return false;
             }
             if (!model.creativeMode && cell.kind() == Kind.BANNER) {
                 int b = bannerButtonAt(cell, mx, my);
@@ -1090,6 +1389,11 @@ public class TabEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (boxMode != 0) {
+            boxX1 = mx;
+            boxY1 = my;
+            return true;
+        }
         if (draggingBar != 0) {
             dragBar(my);
             return true;
@@ -1110,6 +1414,10 @@ public class TabEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         try {
+            if (boxMode != 0) {
+                finishBox();
+                return true;
+            }
             if (draggingBar != 0) {
                 draggingBar = 0;
                 return true;
@@ -1125,6 +1433,11 @@ public class TabEditorScreen extends Screen {
             if (pressGroup != null && button == 0) {
                 goToGroup(pressGroup);
                 return true;
+            }
+            if (pressPalette != null && button == 0 && !hasControlDown() && !hasShiftDown()) {
+                paletteSelection.clear();
+                paletteSelection.add(pressPaletteIndex);
+                paletteAnchor = pressPaletteIndex;
             }
             if (pressRef != null && button == 0 && !hasControlDown() && !hasShiftDown()) {
                 if (pressKind == Kind.GROUP) {
@@ -1147,6 +1460,7 @@ public class TabEditorScreen extends Screen {
             dragging = false;
             pressTab = -1;
             draggingTab = false;
+            boxMode = 0;
         }
     }
 
@@ -1181,11 +1495,11 @@ public class TabEditorScreen extends Screen {
             return;
         }
         if (pressPalette != null) {
-            ItemStack stack = pressPalette.copy();
+            List<ItemStack> stacks = draggedPalette().stream().map(ItemStack::copy).toList();
             if (member >= 0) {
-                model.insertIntoGroup(entry, member, List.of(stack));
+                model.insertIntoGroup(entry, member, stacks);
             } else {
-                model.insert(entry, List.of(new TabEntry.Item(stack)));
+                model.insert(entry, stacks.stream().map(st -> (TabEntry) new TabEntry.Item(st)).toList());
             }
             return;
         }
@@ -1226,8 +1540,20 @@ public class TabEditorScreen extends Screen {
                 return true;
             }
         }
+        if (getFocused() == tabFind && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
+            selectMatches();
+            return true;
+        }
         boolean typing = getFocused() instanceof EditBox;
         if (!typing && menu == null) {
+            if (hasControlDown() && key == GLFW.GLFW_KEY_Z && !hasShiftDown()) {
+                undo();
+                return true;
+            }
+            if (hasControlDown() && (key == GLFW.GLFW_KEY_Y || key == GLFW.GLFW_KEY_Z)) {
+                redo();
+                return true;
+            }
             if (tabSelected && hasControlDown() && key == GLFW.GLFW_KEY_C) {
                 int i = model.shownIndex();
                 if (i >= 0 && i < model.shown().size()) {

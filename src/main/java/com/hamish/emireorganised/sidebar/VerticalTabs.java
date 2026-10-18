@@ -28,6 +28,16 @@ public final class VerticalTabs {
     private static final int OVERLAP = 3;
     private static final ResourceLocation SCROLL_UP = ResourceLocation.withDefaultNamespace("transferable_list/move_up");
     private static final ResourceLocation SCROLL_DOWN = ResourceLocation.withDefaultNamespace("transferable_list/move_down");
+    /** Vanilla creative tab sprites, drawn transposed (rotated 90 degrees anticlockwise, then flipped vertically). */
+    private static final ResourceLocation LEFT_UNSELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
+    private static final ResourceLocation LEFT_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
+    private static final ResourceLocation RIGHT_UNSELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_bottom_unselected_2");
+    private static final ResourceLocation RIGHT_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_bottom_selected_2");
+    /** Vanilla tab sprite size: 26 wide, 32 long. Transposed, it is 26 tall and sticks 32 out from the panel. */
+    private static final int THICKNESS = 26;
+    private static final int LENGTH = 32;
+    /** How far hovered and selected tabs move into the panel edge. */
+    private static final int SHIFT = 3;
 
     private record Entry(Component name, ItemStack icon, boolean plus) {
     }
@@ -35,6 +45,9 @@ public final class VerticalTabs {
     private abstract static class Column {
         int scroll;
         @Nullable Bounds area;
+        int y0;
+        int step = 1;
+        int visibleCount;
 
         abstract boolean enabled();
 
@@ -63,7 +76,7 @@ public final class VerticalTabs {
         }
 
         int width() {
-            return enabled() ? size() + 6 : 0;
+            return enabled() ? LENGTH : 0;
         }
     }
 
@@ -150,7 +163,9 @@ public final class VerticalTabs {
             FavouriteTabs.tick();
             List<Entry> out = new ArrayList<>();
             for (int i = 0; i < FavouriteTabs.tabs().size(); i++) {
-                out.add(new Entry(Component.translatable("emi_reorganised.fav.tab", i + 1), FavouriteTabs.icon(i), false));
+                String schematic = FavouriteTabs.tabs().get(i).schematic;
+                out.add(new Entry(schematic != null ? Component.literal(schematic) : Component.translatable("emi_reorganised.fav.tab", i + 1),
+                        FavouriteTabs.icon(i), false));
             }
             out.add(new Entry(Component.translatable("emi_reorganised.fav.new"), ItemStack.EMPTY, true));
             return out;
@@ -182,6 +197,10 @@ public final class VerticalTabs {
 
     private static final List<Column> COLUMNS = List.of(INDEX, FAVOURITES);
 
+    private static int dragFrom = -1;
+    private static boolean dragMoved;
+    private static double dragStartY;
+    private static double dragY;
     private static int menuTab = -1;
     private static int menuX;
     private static int menuY;
@@ -194,7 +213,7 @@ public final class VerticalTabs {
     }
 
     public static int size() {
-        return Config.get(Config.TAB_SIZE);
+        return THICKNESS;
     }
 
     public static int spacing() {
@@ -227,11 +246,6 @@ public final class VerticalTabs {
         if (extra > 0 && bounds.width() > extra) {
             bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() - extra, bounds.height());
         }
-        if (FavouriteSearch.enabled() && panel.supportsType(SidebarType.FAVORITES) && !panel.supportsType(SidebarType.INDEX)
-                && bounds.height() > 40) {
-            // Room above the favourites for their search bar, like EMI's search bar above the index.
-            bounds = new Bounds(bounds.x(), bounds.y() + 20, bounds.width(), bounds.height() - 20);
-        }
         Column column = columnFor(panel);
         int w = column != null ? column.width() : 0;
         if (column == null || bounds.width() <= w) {
@@ -252,11 +266,6 @@ public final class VerticalTabs {
         int w = column.width();
         return column.leftOfPanel() ? new Bounds(bounds.x() - w, bounds.y(), bounds.width() + w, bounds.height())
                 : new Bounds(bounds.x(), bounds.y(), bounds.width() + w, bounds.height());
-    }
-
-    /** How far a tab sticks out from the sidebar; selected and hovered tabs grow by 2 more. */
-    private static int depth() {
-        return size() + 4;
     }
 
     private static String lastQuery = "";
@@ -307,6 +316,9 @@ public final class VerticalTabs {
         boolean scrolling = entries.size() > visible;
         int y0 = top + (scrolling ? 10 : 0);
         column.area = new Bounds(x, top, w, bounds.height());
+        column.y0 = y0;
+        column.step = step;
+        column.visibleCount = visible;
         int selectedIndex = column.selected();
         Entry hovered = null;
         var font = Minecraft.getInstance().font;
@@ -315,18 +327,20 @@ public final class VerticalTabs {
             int y = y0 + (i - column.scroll) * step;
             boolean selected = i == selectedIndex;
             boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
-            int d = depth() + (selected || hover ? 2 : 0);
-            int tx = left ? root - d : root;
+            boolean raised = selected || hover;
+            int shift = raised ? SHIFT : 0;
+            int sx = left ? root - LENGTH + shift : root - shift;
             if (!selected) {
-                // Unselected tabs sit behind the sidebar frame: clip at the frame edge.
+                // Unselected and hovered tabs sit behind the sidebar frame: clip at the frame edge.
                 if (left) {
-                    graphics.enableScissor(root - d - 1, y - 1, root, y + s + 1);
+                    graphics.enableScissor(sx, y, root, y + s);
                 } else {
-                    graphics.enableScissor(root, y - 1, root + d + 1, y + s + 1);
+                    graphics.enableScissor(root, y, sx + LENGTH, y + s);
                 }
             }
-            drawTab(graphics, root, y, s, d, left, selected);
-            int ix = tx + (d - 16) / 2;
+            ResourceLocation sprite = left ? (raised ? LEFT_SELECTED : LEFT_UNSELECTED) : (raised ? RIGHT_SELECTED : RIGHT_UNSELECTED);
+            drawTransposed(graphics, sprite, sx, y, LENGTH, s);
+            int ix = sx + (LENGTH - 16) / 2 + (left ? -1 : 1) * (SHIFT - shift) / 2;
             int iy = y + (s - 16) / 2;
             if (entry.plus()) {
                 graphics.drawString(font, "+", ix + 8 - font.width("+") / 2, iy + 4, 0xFF404040, false);
@@ -340,9 +354,17 @@ public final class VerticalTabs {
                 hovered = entry;
             }
         }
+        if (column == FAVOURITES && dragFrom >= 0 && dragMoved) {
+            int target = dropIndex(column, dragY, entries.size() - 1);
+            int ly = y0 + (target - column.scroll) * step + (target > dragFrom ? s + spacing() / 2 : -1 - spacing() / 2);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            graphics.fill(x, ly, x + w, ly + 2, 0xFFFFFFFF);
+            graphics.pose().popPose();
+        }
         if (scrolling) {
             // The arrow sits in the right half of the 32px sprite: centre that half on the tabs.
-            int ax = (left ? x + w - depth() / 2 : x + depth() / 2) - 24;
+            int ax = (left ? x + w - LENGTH / 2 : x + LENGTH / 2) - 24;
             graphics.blitSprite(SCROLL_UP, ax, top - 6, 32, 32);
             graphics.blitSprite(SCROLL_DOWN, ax, top + bounds.height() - 26, 32, 32);
         }
@@ -351,50 +373,23 @@ public final class VerticalTabs {
         }
     }
 
-    private static final int OUTLINE = 0xFF000000;
-    private static final int FILL = 0xFFC6C6C6;
-    private static final int HIGHLIGHT = 0xFFFFFFFF;
-    private static final int SHADOW = 0xFF555555;
-    /** How far a tab's base reaches into the frame border, replacing its edge so the selected tab joins seamlessly. */
-    private static final int BASE = 6;
-
-    /**
-     * Draws a tab sticking {@code depth} px out of the frame edge at {@code root}, {@code length} px tall: light grey with
-     * a black outline and rounded outer corners, a 3px highlight on the top and left, a 3px shadow on the right and
-     * bottom. The base side has no outline and continues {@link #BASE} px into the frame.
-     */
-    private static void drawTab(GuiGraphics g, int root, int y, int length, int depth, boolean left, boolean selected) {
-        int x0 = left ? root - depth : root - BASE;
-        int x1 = left ? root + BASE : root + depth;
-        int y1 = y + length;
-        // Outer end (away from the frame) and the frame side's limits.
-        int outer0 = left ? x0 : x1 - 1;
-        int bodyL = left ? x0 + 1 : x0;
-        int bodyR = left ? x1 : x1 - 1;
-        g.fill(bodyL, y + 1, bodyR, y1 - 1, FILL);
-        // Highlight: top, plus the left side when the outer end faces left.
-        g.fill(bodyL, y + 1, bodyR - (left ? 0 : 1), y + 4, HIGHLIGHT);
-        if (left) {
-            g.fill(x0 + 1, y + 1, x0 + 4, y1 - 2, HIGHLIGHT);
-        }
-        // Shadow: bottom, plus the right side when the outer end faces right.
-        g.fill(bodyL + (left ? 1 : 0), y1 - 4, bodyR, y1 - 1, SHADOW);
-        if (!left) {
-            g.fill(x1 - 4, y + 2, x1 - 1, y1 - 1, SHADOW);
-        }
-        // Outline with rounded outer corners.
-        g.fill(bodyL, y, bodyR - (left ? 0 : 1), y + 1, OUTLINE);
-        g.fill(bodyL + (left ? 1 : 0), y1 - 1, bodyR - (left ? 0 : 1), y1, OUTLINE);
-        g.fill(outer0, y + 1, outer0 + 1, y1 - 1, OUTLINE);
-        int corner = left ? x0 + 1 : x1 - 2;
-        g.fill(corner, y + 1, corner + 1, y + 2, OUTLINE);
-        g.fill(corner, y1 - 2, corner + 1, y1 - 1, OUTLINE);
-        if (selected) {
-            // Inside the frame border the tab is plain frame grey, hiding the border's outline and shading.
-            int f0 = left ? root : root - BASE;
-            int f1 = left ? root + BASE : root;
-            g.fill(f0, y, f1, y1, FILL);
-        }
+    /** Blits a GUI sprite with its axes swapped, so the sprite's length runs across the screen. */
+    private static void drawTransposed(GuiGraphics graphics, ResourceLocation id, int x, int y, int w, int h) {
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = Minecraft.getInstance().getGuiSprites().getSprite(id);
+        graphics.flush();
+        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+        com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0, sprite.atlasLocation());
+        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexShader);
+        org.joml.Matrix4f m = graphics.pose().last().pose();
+        com.mojang.blaze3d.vertex.BufferBuilder buf = com.mojang.blaze3d.vertex.Tesselator.getInstance().begin(
+                com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX);
+        // Screen x follows the sprite's v axis and screen y its u axis.
+        buf.addVertex(m, x, y, 0).setUv(sprite.getU0(), sprite.getV0());
+        buf.addVertex(m, x, y + h, 0).setUv(sprite.getU1(), sprite.getV0());
+        buf.addVertex(m, x + w, y + h, 0).setUv(sprite.getU1(), sprite.getV1());
+        buf.addVertex(m, x + w, y, 0).setUv(sprite.getU0(), sprite.getV1());
+        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(buf.buildOrThrow());
     }
 
     private static final String[] MENU = {"emi_reorganised.fav.set_icon", "emi_reorganised.fav.delete"};
@@ -494,10 +489,45 @@ public final class VerticalTabs {
                 return true;
             }
             column.select(i);
+            if (column == FAVOURITES && i < FavouriteTabs.tabs().size()) {
+                dragFrom = i;
+                dragMoved = false;
+                dragStartY = mouseY;
+                dragY = mouseY;
+            }
             Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
                     net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
         }
         return true;
+    }
+
+    private static int dropIndex(Column column, double mouseY, int max) {
+        int i = column.scroll + (int) Math.floor((mouseY - column.y0) / column.step);
+        return Math.max(0, Math.min(max, i));
+    }
+
+    public static boolean mouseDragged(double mouseX, double mouseY) {
+        if (dragFrom < 0) {
+            return false;
+        }
+        dragY = mouseY;
+        if (Math.abs(mouseY - dragStartY) > 4) {
+            dragMoved = true;
+        }
+        return dragMoved;
+    }
+
+    public static boolean mouseReleased(double mouseX, double mouseY) {
+        if (dragFrom < 0) {
+            return false;
+        }
+        boolean moved = dragMoved;
+        if (moved) {
+            FavouriteTabs.move(dragFrom, dropIndex(FAVOURITES, mouseY, FavouriteTabs.tabs().size() - 1));
+        }
+        dragFrom = -1;
+        dragMoved = false;
+        return moved;
     }
 
     public static boolean mouseScrolled(double mouseX, double mouseY, double amount) {

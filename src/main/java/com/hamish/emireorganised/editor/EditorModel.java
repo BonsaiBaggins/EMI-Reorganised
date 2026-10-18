@@ -49,8 +49,15 @@ public final class EditorModel {
     private final List<TabEntry> clipboard = new ArrayList<>();
     private boolean dirty;
 
+    /** Bumped on every change to the user's tabs, so views derived from them know to refresh. */
+    public int version;
+    /** The creative tab snapshot is slow to build, so it's kept for the session (per registry set). */
+    @Nullable private static List<Tab> creativeCache;
+    @Nullable private static Object creativeCacheKey;
+
     public EditorModel() {
         reload();
+        setAllOpen(false);
     }
 
     public void reload() {
@@ -62,11 +69,13 @@ public final class EditorModel {
         tab = Math.min(tab, Math.max(0, tabs.size() - 1));
         selection.clear();
         dirty = false;
+        clearHistory();
     }
 
     public void save() {
         TabStore.setTabs(tabs.stream().map(Tab::copy).toList());
         dirty = false;
+        clearHistory();
     }
 
     public boolean dirty() {
@@ -74,7 +83,76 @@ public final class EditorModel {
     }
 
     public void markDirty() {
+        markDirty(null);
+    }
+
+    private static final int HISTORY = 10;
+    private final java.util.ArrayDeque<List<Tab>> undo = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<List<Tab>> redo = new java.util.ArrayDeque<>();
+    /** The tabs as they were after the last recorded change: what an undo goes back to. */
+    private List<Tab> lastState = List.of();
+    @Nullable private String lastKey;
+
+    private List<Tab> snapshot() {
+        return tabs.stream().map(Tab::copy).toList();
+    }
+
+    /**
+     * Records a change to the user's tabs for undo. Consecutive changes with the same non-null key (e.g. typing in one
+     * text box) count as one change.
+     */
+    public void markDirty(@Nullable String key) {
         dirty = true;
+        version++;
+        if (key == null || !key.equals(lastKey)) {
+            undo.push(lastState);
+            while (undo.size() > HISTORY) {
+                undo.removeLast();
+            }
+        }
+        lastKey = key;
+        redo.clear();
+        lastState = snapshot();
+    }
+
+    public void clearHistory() {
+        undo.clear();
+        redo.clear();
+        lastKey = null;
+        lastState = snapshot();
+    }
+
+    public boolean canUndo() {
+        return !undo.isEmpty() && !creativeMode;
+    }
+
+    public boolean canRedo() {
+        return !redo.isEmpty() && !creativeMode;
+    }
+
+    public void undo() {
+        if (canUndo()) {
+            redo.push(lastState);
+            restore(undo.pop());
+        }
+    }
+
+    public void redo() {
+        if (canRedo()) {
+            undo.push(lastState);
+            restore(redo.pop());
+        }
+    }
+
+    private void restore(List<Tab> state) {
+        tabs.clear();
+        state.forEach(t -> tabs.add(t.copy()));
+        tab = Math.min(tab, Math.max(0, tabs.size() - 1));
+        selection.clear();
+        lastKey = null;
+        lastState = snapshot();
+        dirty = true;
+        version++;
     }
 
     @Nullable
@@ -97,8 +175,20 @@ public final class EditorModel {
         if (on && creative.isEmpty()) {
             var level = net.minecraft.client.Minecraft.getInstance().level;
             if (level != null) {
-                creative.addAll(TabStore.snapshot(level.registryAccess()));
-                creative.forEach(com.hamish.emireorganised.data.Migration::addSectionBanners);
+                if (creativeCache == null || creativeCacheKey != level.registryAccess()) {
+                    List<Tab> built = new ArrayList<>(TabStore.snapshot(level.registryAccess()));
+                    built.forEach(com.hamish.emireorganised.data.Migration::addSectionBanners);
+                    creativeCache = built;
+                    creativeCacheKey = level.registryAccess();
+                }
+                creativeCache.forEach(t -> creative.add(t.copy()));
+                for (Tab t : creative) {
+                    for (TabEntry e : t.entries) {
+                        if (e instanceof TabEntry.Group g) {
+                            closed.add(g.group().id);
+                        }
+                    }
+                }
             }
         }
         creativeMode = on;
@@ -126,7 +216,7 @@ public final class EditorModel {
         tabs.add(Math.min(tab + 1, tabs.size()), t);
         tab = tabs.indexOf(t);
         selection.clear();
-        dirty = true;
+        markDirty();
     }
 
     public ItemGroup newEmptyGroup(String name) {
@@ -134,7 +224,7 @@ public final class EditorModel {
         entries().add(new TabEntry.Group(group));
         selection.clear();
         selection.add(Ref.of(entries().size() - 1));
-        dirty = true;
+        markDirty();
         return group;
     }
 
@@ -143,7 +233,7 @@ public final class EditorModel {
         if (entry >= 0 && entry < entries.size() && entries.get(entry) instanceof TabEntry.Group) {
             entries.remove(entry);
             selection.clear();
-            dirty = true;
+            markDirty();
         }
     }
 
@@ -210,7 +300,7 @@ public final class EditorModel {
         tabs.add(Math.min(tab + 1, tabs.size()), t);
         tab = tabs.indexOf(t);
         selection.clear();
-        dirty = true;
+        markDirty();
     }
 
     private String uniqueTabId(String name) {
@@ -234,7 +324,7 @@ public final class EditorModel {
             tabs.remove(tab);
             tab = Math.max(0, Math.min(tab, tabs.size() - 1));
             selection.clear();
-            dirty = true;
+            markDirty();
         }
     }
 
@@ -243,7 +333,7 @@ public final class EditorModel {
         if (current() != null && to >= 0 && to < tabs.size()) {
             tabs.add(to, tabs.remove(tab));
             tab = to;
-            dirty = true;
+            markDirty();
         }
     }
 
@@ -260,12 +350,12 @@ public final class EditorModel {
         Tab moved = tabs.remove(from);
         tabs.add(before > from ? before - 1 : before, moved);
         tab = Math.max(0, tabs.indexOf(open));
-        dirty = true;
+        markDirty();
     }
 
     /** After a group's item list changed: removes other copies of its items from the tab that owns it. */
     public void groupChanged(ItemGroup group) {
-        dirty = true;
+        markDirty();
         for (Tab t : tabs) {
             if (t.entries.stream().anyMatch(e -> e instanceof TabEntry.Group g && g.group() == group)) {
                 enforceUnique(t.entries, group.items);
@@ -357,7 +447,7 @@ public final class EditorModel {
         entries.removeIf(e -> e instanceof TabEntry.Group g && g.group().items.isEmpty());
         selection.clear();
         if (!removed.isEmpty()) {
-            dirty = true;
+            markDirty();
         }
         return removed;
     }
@@ -417,7 +507,7 @@ public final class EditorModel {
                 selection.add(Ref.of(i));
             }
         }
-        dirty = true;
+        markDirty();
     }
 
     /** Inserts loose items into a group at a member position. */
@@ -440,7 +530,7 @@ public final class EditorModel {
                 selection.add(new Ref(index, m));
             }
         }
-        dirty = true;
+        markDirty();
     }
 
     /**
@@ -536,7 +626,7 @@ public final class EditorModel {
                 }
             }
         }
-        dirty = true;
+        markDirty();
     }
 
     public BannerDef newBanner(String name) {
@@ -561,13 +651,18 @@ public final class EditorModel {
         return entries().stream().anyMatch(e -> e instanceof TabEntry.Group g && isOpen(g.group()));
     }
 
+    /** Opens or closes every group in every tab. */
     public void setAllOpen(boolean open) {
-        for (TabEntry e : entries()) {
-            if (e instanceof TabEntry.Group g) {
-                if (open) {
-                    closed.remove(g.group().id);
-                } else {
-                    closed.add(g.group().id);
+        if (open) {
+            closed.clear();
+            return;
+        }
+        for (List<Tab> list : List.of(tabs, creative)) {
+            for (Tab t : list) {
+                for (TabEntry e : t.entries) {
+                    if (e instanceof TabEntry.Group g) {
+                        closed.add(g.group().id);
+                    }
                 }
             }
         }

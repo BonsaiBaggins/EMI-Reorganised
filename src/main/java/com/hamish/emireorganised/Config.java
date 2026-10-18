@@ -24,8 +24,6 @@ public final class Config {
             .comment("Show a column of tab buttons beside EMI's index.").define("verticalTabs", true);
     public static final ModConfigSpec.EnumValue<TabSide> TAB_SIDE = BUILDER
             .comment("Which side of the index the tabs sit on.").defineEnum("tabSide", TabSide.LEFT);
-    public static final ModConfigSpec.IntValue TAB_SIZE = BUILDER
-            .comment("Size of each vertical tab button.").defineInRange("tabSize", 22, 16, 40);
     public static final ModConfigSpec.IntValue TAB_SPACING = BUILDER
             .comment("Gap between vertical tab buttons.").defineInRange("tabSpacing", 1, 0, 10);
     public static final ModConfigSpec.BooleanValue INDEX_SCROLLING = BUILDER
@@ -90,6 +88,15 @@ public final class Config {
 
     public static final ModConfigSpec.EnumValue<EditorButton> EDITOR_BUTTON = BUILDER
             .comment("When to show the Open Editor button beside the inventory.").defineEnum("openEditorButton", EditorButton.CREATIVE_ONLY);
+
+    static {
+        BUILDER.pop();
+        BUILDER.comment("The player inventory.").push("inventory");
+    }
+
+    public static final ModConfigSpec.BooleanValue SURVIVAL_INVENTORY_IN_CREATIVE = BUILDER
+            .comment("In creative mode, open the survival inventory instead of the creative inventory.")
+            .define("survivalInventoryInCreative", false);
 
     static {
         BUILDER.pop();

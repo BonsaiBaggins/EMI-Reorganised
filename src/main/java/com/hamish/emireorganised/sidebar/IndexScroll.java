@@ -137,6 +137,12 @@ public final class IndexScroll {
         BARS.clear();
     }
 
+    /** A new screen is opening: forget the old screen's scrollbars so they can't take its clicks. */
+    public static void clearBars() {
+        BARS.clear();
+        dragging = null;
+    }
+
     public static void onMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
         if (event.getButton() != 0) {
             return;

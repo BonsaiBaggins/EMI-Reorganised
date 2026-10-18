@@ -43,6 +43,11 @@ public class GroupEditScreen extends EditorPopup {
     private Button sourceButton;
     private Button fillButton;
     private List<TagKey<Item>> tagMatches = List.of();
+    /** How many of the group's items carry each tag, for ranking and shading the tag suggestions. */
+    private java.util.Map<TagKey<Item>, Integer> tagCounts = java.util.Map.of();
+    private Button sortButton;
+    private boolean sortOpen;
+    private static final String[] SORTS = {"alphabetical", "default", "mod"};
     private int scroll;
     private int dragFrom = -1;
     private boolean dragging;
@@ -120,6 +125,8 @@ public class GroupEditScreen extends EditorPopup {
         fillButton = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.group.fill"), b -> fill())
                 .bounds(left() + W - 120, y + 64, 110, 18).build());
         fillButton.setTooltip(Tooltip.create(Component.translatable("emi_reorganised.group.fill.tip")));
+        sortButton = addRenderableWidget(Button.builder(Component.translatable("emi_reorganised.group.sort"), b -> sortOpen = !sortOpen)
+                .bounds(left() + W - 120, y + 84, 110, 18).build());
         applySource();
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(left() + W / 2 - 104, top() + H - 26, 100, 20).build());
@@ -170,15 +177,69 @@ public class GroupEditScreen extends EditorPopup {
             return;
         }
         String q = pattern.getValue().trim().replaceFirst("^#", "").toLowerCase(Locale.ROOT);
+        java.util.Map<TagKey<Item>, Integer> counts = new java.util.HashMap<>();
+        for (ItemStack stack : items) {
+            stack.getTags().forEach(t -> counts.merge(t, 1, Integer::sum));
+        }
+        tagCounts = counts;
+        if (q.isEmpty() && !counts.isEmpty()) {
+            // Nothing typed yet: suggest the tags most shared by the group's items.
+            tagMatches = counts.entrySet().stream()
+                    .sorted(java.util.Map.Entry.<TagKey<Item>, Integer>comparingByValue().reversed()
+                            .thenComparing(e -> e.getKey().location().toString()))
+                    .map(java.util.Map.Entry::getKey).limit(8).toList();
+            return;
+        }
         tagMatches = BuiltInRegistries.ITEM.getTagNames()
                 .filter(t -> t.location().toString().contains(q))
                 .filter(t -> !t.location().toString().equals(q))
                 .sorted((a, b) -> {
                     boolean pa = a.location().getPath().startsWith(q) || a.location().toString().startsWith(q);
                     boolean pb = b.location().getPath().startsWith(q) || b.location().toString().startsWith(q);
+                    int ca = counts.getOrDefault(a, 0);
+                    int cb = counts.getOrDefault(b, 0);
+                    if (ca != cb) {
+                        return Integer.compare(cb, ca);
+                    }
                     return pa != pb ? (pa ? -1 : 1) : a.location().toString().compareTo(b.location().toString());
                 })
                 .limit(8).toList();
+    }
+
+    private void sort(int mode) {
+        java.util.Comparator<ItemStack> byName = java.util.Comparator.comparing(s -> s.getHoverName().getString().toLowerCase(Locale.ROOT));
+        switch (mode) {
+            case 0 -> items.sort(byName);
+            case 1 -> {
+                java.util.Map<Item, Integer> order = creativeOrder();
+                items.sort(java.util.Comparator.<ItemStack>comparingInt(s -> order.getOrDefault(s.getItem(), Integer.MAX_VALUE))
+                        .thenComparingInt(s -> BuiltInRegistries.ITEM.getId(s.getItem())));
+            }
+            default -> items.sort(java.util.Comparator.<ItemStack, Boolean>comparing(
+                            s -> !BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace().equals("minecraft"))
+                    .thenComparing(s -> modName(BuiltInRegistries.ITEM.getKey(s.getItem()).getNamespace()))
+                    .thenComparing(byName));
+        }
+        scroll = 0;
+    }
+
+    private static String modName(String namespace) {
+        return net.neoforged.fml.ModList.get().getModContainerById(namespace)
+                .map(c -> c.getModInfo().getDisplayName()).orElse(namespace).toLowerCase(Locale.ROOT);
+    }
+
+    /** Position of each item in the creative tabs (in tab order), as the "Default" sort order. */
+    private static java.util.Map<Item, Integer> creativeOrder() {
+        java.util.Map<Item, Integer> order = new java.util.HashMap<>();
+        for (net.minecraft.world.item.CreativeModeTab tab : net.minecraft.world.item.CreativeModeTabs.allTabs()) {
+            if (tab.getType() != net.minecraft.world.item.CreativeModeTab.Type.CATEGORY) {
+                continue;
+            }
+            for (ItemStack stack : tab.getDisplayItems()) {
+                order.putIfAbsent(stack.getItem(), order.size());
+            }
+        }
+        return order;
     }
 
     private void fill() {
@@ -300,6 +361,25 @@ public class GroupEditScreen extends EditorPopup {
             graphics.renderItem(items.get(dragFrom), mouseX - 8, mouseY - 8);
             graphics.pose().popPose();
         }
+        if (sortOpen) {
+            int x = sortButton.getX();
+            int y = sortButton.getY() + 18;
+            int w = sortButton.getWidth();
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            graphics.fill(x, y, x + w, y + SORTS.length * 12 + 2, 0xF0000000);
+            graphics.renderOutline(x, y, w, SORTS.length * 12 + 2, 0xFF505050);
+            for (int i = 0; i < SORTS.length; i++) {
+                int ry = y + 1 + i * 12;
+                boolean hover = mouseX >= x && mouseX < x + w && mouseY >= ry && mouseY < ry + 12;
+                if (hover) {
+                    graphics.fill(x + 1, ry, x + w - 1, ry + 12, 0x40FFFFFF);
+                }
+                graphics.drawString(font, Component.translatable("emi_reorganised.group.sort." + SORTS[i]), x + 4, ry + 2, 0xFFFFFF);
+            }
+            graphics.pose().popPose();
+            return;
+        }
         if (source == Source.TAG && pattern.isFocused()) {
             int x = pattern.getX();
             int y = pattern.getY() + 18;
@@ -315,8 +395,15 @@ public class GroupEditScreen extends EditorPopup {
             for (int i = 0; i < tagMatches.size(); i++) {
                 int ry = y + 1 + i * 11;
                 boolean hover = mouseX >= x && mouseX < x + w && mouseY >= ry && mouseY < ry + 11;
+                float share = items.isEmpty() ? 0 : tagCounts.getOrDefault(tagMatches.get(i), 0) / (float) items.size();
+                if (share > 0) {
+                    // Lighter the more of the group's items have this tag, up to the vanilla UI light grey.
+                    int c = (int) (0x10 + (0xC6 - 0x10) * share);
+                    graphics.fill(x + 1, ry, x + w - 1, ry + 11, 0xFF000000 | c << 16 | c << 8 | c);
+                }
+                boolean light = share > 0.5F;
                 graphics.drawString(font, font.plainSubstrByWidth("#" + tagMatches.get(i).location(), w - 4),
-                        x + 2, ry + 1, hover ? 0xFFFF55 : 0xDDDDDD);
+                        x + 2, ry + 1, hover ? (light ? 0x7A5C00 : 0xFFFF55) : (light ? 0x202020 : 0xDDDDDD), false);
             }
             graphics.pose().popPose();
             return;
@@ -329,6 +416,15 @@ public class GroupEditScreen extends EditorPopup {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (sortOpen) {
+            int x = sortButton.getX();
+            int y = sortButton.getY() + 19;
+            sortOpen = false;
+            if (mx >= x && mx < x + sortButton.getWidth() && my >= y && my < y + SORTS.length * 12) {
+                sort((int) ((my - y) / 12));
+            }
+            return true;
+        }
         if (!tagMatches.isEmpty()) {
             int x = pattern.getX();
             int y = pattern.getY() + 19;

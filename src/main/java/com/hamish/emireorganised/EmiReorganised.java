@@ -28,6 +28,32 @@ public final class EmiReorganised {
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.hamish.emireorganised.sidebar.IndexScroll::onMousePressed);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.hamish.emireorganised.sidebar.IndexScroll::onMouseDragged);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.hamish.emireorganised.sidebar.IndexScroll::onMouseReleased);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.Opening event) -> {
+            // Our sidebar widgets are drawn by EMI; stop the previous screen's ones taking clicks on the new screen.
+            com.hamish.emireorganised.sidebar.FavouriteSearch.hide();
+            com.hamish.emireorganised.sidebar.IndexScroll.clearBars();
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (event.getNewScreen() instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen && mc.player != null
+                    && Config.get(Config.SURVIVAL_INVENTORY_IN_CREATIVE)) {
+                event.setNewScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
+            }
+        });
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.MouseDragged.Pre event) -> {
+            if (com.hamish.emireorganised.sidebar.VerticalTabs.mouseDragged(event.getMouseX(), event.getMouseY())) {
+                event.setCanceled(true);
+            }
+        });
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.MouseButtonReleased.Pre event) -> {
+            if (com.hamish.emireorganised.sidebar.VerticalTabs.mouseReleased(event.getMouseX(), event.getMouseY())) {
+                event.setCanceled(true);
+            }
+        });
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
+            if (event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_A && net.neoforged.fml.ModList.get().isLoaded("create")
+                    && com.hamish.emireorganised.compat.CreateSchematics.tryAddHovered(event.getScreen())) {
+                event.setCanceled(true);
+            }
+        });
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
             if (com.hamish.emireorganised.editor.EditorKeys.handleScreenKey(event.getKeyCode(), event.getScanCode())) {
                 event.setCanceled(true);

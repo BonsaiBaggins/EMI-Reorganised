@@ -127,6 +127,7 @@ public final class BannerRenderer {
         } else {
             drawBackground(graphics, source, x, y, w, h);
         }
+        drawBevel(graphics, x, y, w, h);
         drawTitle(graphics, view, x, y, w, h);
     }
 
@@ -184,6 +185,25 @@ public final class BannerRenderer {
             blit(graphics, s, x + 1, y, inner, h, u0, u0 + inner);
             blit(graphics, s, x + w - 1, y, 1, h, tw - 1, tw);
         }
+    }
+
+    private static final int BEVEL_LIGHT = 0xFFDBDBDB;
+    private static final int BEVEL_DARK = 0xFFA4A4A4;
+    /** EMI's vanilla-theme background grey. */
+    private static final int BEVEL_CORNER = 0xFFC6C6C6;
+
+    /** 1px bevel over the banner's edge: light on the top and left, dark on the bottom and right. */
+    public static void drawBevel(GuiGraphics graphics, int x, int y, int w, int h) {
+        if (w < 2 || h < 2) {
+            return;
+        }
+        graphics.fill(x, y, x + w - 1, y + 1, BEVEL_LIGHT);
+        graphics.fill(x, y + 1, x + 1, y + h - 1, BEVEL_LIGHT);
+        graphics.fill(x + 1, y + h - 1, x + w, y + h, BEVEL_DARK);
+        graphics.fill(x + w - 1, y + 1, x + w, y + h - 1, BEVEL_DARK);
+        graphics.fill(x + w - 1, y, x + w, y + 1, BEVEL_CORNER);
+        graphics.fill(x, y + h - 1, x + 1, y + h, BEVEL_CORNER);
+        graphics.flush();
     }
 
     /** Width of the title box drawn at the banner's left, for hit-testing the rename area. */

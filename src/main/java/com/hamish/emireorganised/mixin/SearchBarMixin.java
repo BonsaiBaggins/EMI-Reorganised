@@ -35,6 +35,17 @@ public abstract class SearchBarMixin {
     private static void simemibanners$reserveSearch(EmiScreenManager.SidebarPanel panel, Screen screen, List<Bounds> exclusion,
                                                    boolean rtl, Bounds bounds, SidebarSettings settings, Operation<Void> original) {
         Config.SearchBarPosition mode = simemibanners$mode();
+        if (com.hamish.emireorganised.sidebar.FavouriteSearch.enabled()
+                && panel.supportsType(dev.emi.emi.config.SidebarType.FAVORITES)
+                && !panel.supportsType(dev.emi.emi.config.SidebarType.INDEX)
+                && panel.side != EmiConfig.searchSidebar) {
+            // Room for the favourites search bar above the panel. The favourites have no 18px header row, so blocking
+            // just the first slot row lines their frame up with the index (whose header row sits beside EMI's search bar).
+            List<Bounds> withSearch = new ArrayList<>(exclusion);
+            withSearch.add(new Bounds(bounds.x() - 2000, bounds.y(), bounds.width() + 4000, 4));
+            original.call(panel, screen, withSearch, rtl, bounds, settings);
+            return;
+        }
         if (mode == Config.SearchBarPosition.DEFAULT || panel.side != EmiConfig.searchSidebar) {
             original.call(panel, screen, exclusion, rtl, bounds, settings);
             return;

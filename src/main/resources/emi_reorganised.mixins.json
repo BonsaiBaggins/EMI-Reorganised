@@ -13,7 +13,9 @@
     "IndexGroupMixin",
     "SidebarPanelScrollMixin",
     "SidebarBackgroundMixin",
-    "FavouriteHeaderMixin"
+    "FavouriteHeaderMixin",
+    "SchematicFavouriteMixin",
+    "SchematicFavouritesMixin"
   ],
   "injectors": {
     "defaultRequire": 1

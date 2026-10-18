@@ -81,6 +81,14 @@ public final class FavouriteSearch {
         shown = true;
     }
 
+    /** A new screen is opening: the bar takes no input there until it's drawn on it. */
+    public static void hide() {
+        shown = false;
+        if (box != null) {
+            box.setFocused(false);
+        }
+    }
+
     /** Called once per frame before drawing: the bar only takes input while it was drawn. */
     public static void beginFrame() {
         shown = false;

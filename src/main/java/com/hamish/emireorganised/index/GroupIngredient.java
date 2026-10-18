@@ -94,7 +94,7 @@ public final class GroupIngredient implements EmiIngredient {
 
     private static final float[] SHADES = {1.0F, 0.72F, 0.5F};
 
-    /** Up to three of the group's items: the first in front at the left, later ones further right, behind and darker. */
+    /** Up to three of the group's items: the first in front at the top left, later ones towards the bottom right, behind and darker. */
     private void renderCascade(GuiGraphics graphics, int x, int y) {
         List<ItemStack> layers = new java.util.ArrayList<>();
         layers.add(icon);
@@ -116,7 +116,7 @@ public final class GroupIngredient implements EmiIngredient {
         var pose = graphics.pose();
         for (int i = layers.size() - 1; i >= 0; i--) {
             pose.pushPose();
-            pose.translate(x + step * i, y + step * (layers.size() - 1 - i), (layers.size() - 1 - i) * 40);
+            pose.translate(x + step * i, y + step * i, (layers.size() - 1 - i) * 40);
             pose.scale(scale, scale, scale);
             float shade = SHADES[i];
             com.mojang.blaze3d.systems.RenderSystem.setShaderColor(shade, shade, shade, 1.0F);
