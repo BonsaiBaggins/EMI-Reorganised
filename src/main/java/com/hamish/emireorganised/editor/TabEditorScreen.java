@@ -26,7 +26,8 @@ import org.lwjgl.glfw.GLFW;
 
 /** One screen for editing our tabs: their items, item groups and banners. */
 public class TabEditorScreen extends Screen {
-    private static final int SLOT = 18;
+    /** 16px item area plus a 3px transparent gap (empty space) between neighbours. */
+    private static final int SLOT = 19;
     private static final int TOP = 30;
     private static final int LEFT_W = 112;
     private static final int TAB_ROW = 20;
@@ -512,7 +513,7 @@ public class TabEditorScreen extends Screen {
     private static boolean onSlotBorder(double dx, double dy) {
         double x = ((dx % SLOT) + SLOT) % SLOT;
         double y = ((dy % SLOT) + SLOT) % SLOT;
-        return x < 1 || x >= SLOT - 1 || y < 1 || y >= SLOT - 1;
+        return x < 1 || x >= 17 || y < 1 || y >= 17;
     }
 
     private int paletteIndexAt(double mx, double my) {
@@ -846,18 +847,17 @@ public class TabEditorScreen extends Screen {
                 }
                 continue;
             }
-            graphics.fill(x, y, x + SLOT, y + SLOT, 0xFF373737);
-            graphics.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, 0xFF8B8B8B);
+            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0xFF8B8B8B);
             if (cell.kind() == Kind.MEMBER) {
-                graphics.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, MEMBER_TINT);
+                graphics.fill(x + 1, y + 1, x + 17, y + 17, MEMBER_TINT);
             }
             boolean selected = model.isSelected(cell.ref());
             if (selected) {
                 int colour = adding != null ? SELECT_ADD : cell.kind() == Kind.GROUP ? SELECT_GROUP : SELECT_ITEM;
-                graphics.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, colour);
+                graphics.fill(x + 1, y + 1, x + 17, y + 17, colour);
             }
-            if (cell.contains(mouseX, mouseY) && menu == null) {
-                graphics.fill(x + 1, y + 1, x + SLOT - 1, y + SLOT - 1, 0x60FFFFFF);
+            if (cell.contains(mouseX, mouseY) && !onSlotBorder(mouseX - x, mouseY - y) && menu == null) {
+                graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x60FFFFFF);
             }
             if (cell.kind() == Kind.GROUP) {
                 com.hamish.emireorganised.index.GroupIngredient.drawCascade(graphics, cascade(((TabEntry.Group) cell.entry()).group()), x + 1, y + 1);
@@ -866,7 +866,7 @@ public class TabEditorScreen extends Screen {
             }
             if (cell.kind() == Kind.GROUP) {
                 ItemGroup g = ((TabEntry.Group) cell.entry()).group();
-                graphics.renderOutline(x, y, SLOT, SLOT, GROUP_FRAME);
+                graphics.renderOutline(x, y, 18, 18, GROUP_FRAME);
                 graphics.pose().pushPose();
                 graphics.pose().translate(0, 0, 200);
                 graphics.drawString(font, model.isOpen(g) ? "-" : "+", x + 12, y, 0xFFFFFF, true);
@@ -951,10 +951,9 @@ public class TabEditorScreen extends Screen {
                 }
                 int sx = px + c * SLOT;
                 int sy = py + r * SLOT;
-                graphics.fill(sx, sy, sx + SLOT, sy + SLOT, 0xFF373737);
-                graphics.fill(sx + 1, sy + 1, sx + SLOT - 1, sy + SLOT - 1, 0xFF8B8B8B);
+                graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, 0xFF8B8B8B);
                 if (paletteSelection.contains(index)) {
-                    graphics.fill(sx + 1, sy + 1, sx + SLOT - 1, sy + SLOT - 1, SELECT_ITEM);
+                    graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, SELECT_ITEM);
                 }
                 graphics.renderItem(list.get(index), px + c * SLOT + 1, py + r * SLOT + 1);
             }
@@ -1058,7 +1057,9 @@ public class TabEditorScreen extends Screen {
             return;
         }
         if (!dragging) {
-            Cell cell = cellAt(mouseX, mouseY);
+            Cell hit = cellAt(mouseX, mouseY);
+            // Nothing is hovered over the gaps between slots: they're empty space.
+            Cell cell = hit != null && hit.kind() != Kind.BANNER && onSlotBorder(mouseX - hit.x(), mouseY - hit.y()) ? null : hit;
             if (cell != null && cell.kind() == Kind.GROUP) {
                 ItemGroup g = ((TabEntry.Group) cell.entry()).group();
                 graphics.renderComponentTooltip(font, List.of(Component.literal(g.name),

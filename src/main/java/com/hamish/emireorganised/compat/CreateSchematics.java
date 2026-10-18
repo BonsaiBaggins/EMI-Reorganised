@@ -38,6 +38,14 @@ public final class CreateSchematics {
     private CreateSchematics() {
     }
 
+    public static void onTooltip(net.neoforged.neoforge.event.entity.player.ItemTooltipEvent event) {
+        ItemStack stack = event.getItemStack();
+        if (stack.getItem() instanceof SchematicItem && stack.has(com.simibubi.create.AllDataComponents.SCHEMATIC_FILE)) {
+            event.getToolTip().add(net.minecraft.network.chat.Component.translatable("emi_reorganised.schematic.hint")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+    }
+
     /** "A" over a filled schematic in an inventory adds a favourites tab with its material list. */
     public static boolean tryAddHovered(Screen screen) {
         if (!(screen instanceof AbstractContainerScreen<?> container) || screen.getFocused() instanceof EditBox
@@ -63,8 +71,17 @@ public final class CreateSchematics {
             }
             return true;
         }
-        FavouriteTabs.addSchematic(stack.getHoverName().getString(), stack, required);
+        FavouriteTabs.addSchematic(schematicName(stack), stack, required);
         return true;
+    }
+
+    /** The schematic's file name without ".nbt", or the item's name if it has been renamed. */
+    private static String schematicName(ItemStack stack) {
+        if (stack.has(DataComponents.CUSTOM_NAME)) {
+            return stack.getHoverName().getString();
+        }
+        String file = stack.get(com.simibubi.create.AllDataComponents.SCHEMATIC_FILE);
+        return file != null ? file.replaceFirst("(?i)\\.nbt$", "") : stack.getHoverName().getString();
     }
 
     private static Map<Item, Integer> materials(Level level, ItemStack stack) {

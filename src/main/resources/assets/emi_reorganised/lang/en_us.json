@@ -137,5 +137,6 @@
   "emi_reorganised.editor.in_tabs": "Tabs: %s",
   "emi_reorganised.editor.in_tabs.none": "Unsorted",
   "emi_reorganised.schematic.unreadable": "Couldn't read the material list of %s",
-  "emi_reorganised.editor.find": "Search tab..."
+  "emi_reorganised.editor.find": "Search tab...",
+  "emi_reorganised.schematic.hint": "Press A to add an item list to your favourites"
 }

@@ -38,6 +38,11 @@ public final class EmiReorganised {
                 event.setNewScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
             }
         });
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(net.neoforged.bus.api.EventPriority.LOWEST,
+                com.hamish.emireorganised.sidebar.VerticalTabs::renderTooltip);
+        if (net.neoforged.fml.ModList.get().isLoaded("create")) {
+            net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.hamish.emireorganised.compat.CreateSchematics::onTooltip);
+        }
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.MouseDragged.Pre event) -> {
             if (com.hamish.emireorganised.sidebar.VerticalTabs.mouseDragged(event.getMouseX(), event.getMouseY())) {
                 event.setCanceled(true);

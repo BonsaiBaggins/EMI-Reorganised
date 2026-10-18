@@ -269,8 +269,24 @@ public final class VerticalTabs {
     }
 
     private static String lastQuery = "";
+    @Nullable private static Component tooltip;
+    private static int tooltipX;
+    private static int tooltipY;
+
+    /** ScreenEvent.Render.Post (lowest priority): the hovered tab's name. */
+    public static void renderTooltip(net.neoforged.neoforge.client.event.ScreenEvent.Render.Post event) {
+        if (tooltip != null) {
+            GuiGraphics graphics = event.getGuiGraphics();
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 600);
+            graphics.renderTooltip(Minecraft.getInstance().font, tooltip, tooltipX, tooltipY);
+            graphics.pose().popPose();
+            tooltip = null;
+        }
+    }
 
     public static void render(GuiGraphics graphics, int mouseX, int mouseY) {
+        tooltip = null;
         String query = EmiScreenManager.search != null ? EmiScreenManager.search.getValue() : "";
         if (!query.isEmpty() && lastQuery.isEmpty() && Config.get(Config.SEARCH_SHOWS_ALL) && TabState.selected() != null) {
             TabState.select(null);
@@ -369,10 +385,11 @@ public final class VerticalTabs {
             graphics.blitSprite(SCROLL_DOWN, ax, top + bounds.height() - 26, 32, 32);
         }
         if (hovered != null) {
-            // EMI's own tooltip renderer: vanilla's draws an empty box at this point of EMI's render.
-            dev.emi.emi.EmiRenderHelper.drawTooltip(Minecraft.getInstance().screen, dev.emi.emi.runtime.EmiDrawContext.wrap(graphics),
-                    List.of(net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent.create(hovered.name().getVisualOrderText())),
-                    mouseX, mouseY);
+            // Drawn once the whole screen has rendered (see renderTooltip): drawing it here, inside EMI's render,
+            // shows an empty box.
+            tooltip = hovered.name();
+            tooltipX = mouseX;
+            tooltipY = mouseY;
         }
     }
 
