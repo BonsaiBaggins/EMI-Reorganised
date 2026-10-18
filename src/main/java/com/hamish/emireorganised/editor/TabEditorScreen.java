@@ -604,13 +604,23 @@ public class TabEditorScreen extends Screen {
         if (x1 - x0 < 3 && y1 - y0 < 3) {
             return;
         }
+        // The box selects with an area inset 1px from what's drawn, and only touches a slot's 16px item area
+        // (not the 3px gap around it).
+        x0 += 1;
+        y0 += 1;
+        x1 -= 1;
+        y1 -= 1;
         if (boxMode == 1) {
             tabSelected = false;
             int top = gridY();
             int bottom = gridY() + gridRows() * SLOT;
             for (Cell cell : cells) {
-                if (cell.y() + SLOT > top && cell.y() < bottom && cell.x() < x1 && cell.x() + cell.w() > x0
-                        && cell.y() < y1 && cell.y() + SLOT > y0) {
+                boolean banner = cell.kind() == Kind.BANNER;
+                int ax = banner ? cell.x() : cell.x() + 1;
+                int ay = banner ? cell.y() : cell.y() + 1;
+                int ax1 = banner ? cell.x() + cell.w() : cell.x() + 17;
+                int ay1 = banner ? cell.y() + SLOT : cell.y() + 17;
+                if (cell.y() + SLOT > top && cell.y() < bottom && ax < x1 && ax1 > x0 && ay < y1 && ay1 > y0) {
                     model.selection.add(cell.ref());
                 }
             }
@@ -624,7 +634,7 @@ public class TabEditorScreen extends Screen {
                     int index = (paletteScroll + r) * cols + c;
                     int sx = px + c * SLOT;
                     int sy = py + r * SLOT;
-                    if (index < size && sx < x1 && sx + SLOT > x0 && sy < y1 && sy + SLOT > y0) {
+                    if (index < size && sx + 1 < x1 && sx + 17 > x0 && sy + 1 < y1 && sy + 17 > y0) {
                         paletteSelection.add(index);
                     }
                 }
