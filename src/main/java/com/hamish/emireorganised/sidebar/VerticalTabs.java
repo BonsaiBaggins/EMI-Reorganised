@@ -36,8 +36,8 @@ public final class VerticalTabs {
     /** Vanilla tab sprite size: 26 wide, 32 long. Transposed, it is 26 tall and sticks 32 out from the panel. */
     private static final int THICKNESS = 26;
     private static final int LENGTH = 32;
-    /** How far hovered and selected tabs move into the panel edge. */
-    private static final int SHIFT = 3;
+    /** How far tabs sit into the panel edge (under it, or over it when selected). */
+    private static final int SHIFT = 4;
 
     private record Entry(Component name, ItemStack icon, boolean plus) {
     }
@@ -328,7 +328,7 @@ public final class VerticalTabs {
             boolean selected = i == selectedIndex;
             boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
             boolean raised = selected || hover;
-            int shift = raised ? SHIFT : 0;
+            int shift = SHIFT;
             int sx = left ? root - LENGTH + shift : root - shift;
             if (!selected) {
                 // Unselected and hovered tabs sit behind the sidebar frame: clip at the frame edge.
@@ -340,7 +340,7 @@ public final class VerticalTabs {
             }
             ResourceLocation sprite = left ? (raised ? LEFT_SELECTED : LEFT_UNSELECTED) : (raised ? RIGHT_SELECTED : RIGHT_UNSELECTED);
             drawTransposed(graphics, sprite, sx, y, LENGTH, s);
-            int ix = sx + (LENGTH - 16) / 2 + (left ? -1 : 1) * (SHIFT - shift) / 2;
+            int ix = sx + (LENGTH - 16) / 2;
             int iy = y + (s - 16) / 2;
             if (entry.plus()) {
                 graphics.drawString(font, "+", ix + 8 - font.width("+") / 2, iy + 4, 0xFF404040, false);
