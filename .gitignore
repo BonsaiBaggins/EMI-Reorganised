@@ -4,3 +4,6 @@ run/
 .idea/
 *.iml
 out/
+.eclipse/
+libs/*.jar
+bin/
