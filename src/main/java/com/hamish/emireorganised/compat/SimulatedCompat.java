@@ -53,53 +53,140 @@ public final class SimulatedCompat {
         return isLoaded() ? Impl.section(id) : null;
     }
 
+    /**
+     * Talks to Simulated through reflection, so building this mod doesn't need Simulated (which only ships inside the
+     * Create Aeronautics bundle). Lookups are cached; none of this runs while drawing.
+     */
     private static final class Impl {
+        private static final java.util.Map<String, java.lang.reflect.Method> METHODS = new java.util.concurrent.ConcurrentHashMap<>();
+        @Nullable private static Object manager;
+
+        private static Object manager() throws ReflectiveOperationException {
+            if (manager == null) {
+                manager = Class.forName("dev.simulated_team.simulated.index.SimResourceManagers").getField("SIMULATED_SECTION").get(null);
+            }
+            return manager;
+        }
+
+        private static java.lang.reflect.Method method(Class<?> type, String name, int args) throws NoSuchMethodException {
+            String key = type.getName() + "#" + name + "/" + args;
+            java.lang.reflect.Method m = METHODS.get(key);
+            if (m == null) {
+                for (Class<?> c = type; c != null && m == null; c = c.getSuperclass()) {
+                    for (java.lang.reflect.Method candidate : c.getMethods()) {
+                        if (candidate.getName().equals(name) && candidate.getParameterCount() == args) {
+                            m = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (m == null) {
+                    throw new NoSuchMethodException(key);
+                }
+                m.setAccessible(true);
+                METHODS.put(key, m);
+            }
+            return m;
+        }
+
+        private static Object call(Object target, String name, Object... args) throws ReflectiveOperationException {
+            return method(target.getClass(), name, args.length).invoke(target, args);
+        }
+
+        private static Object callStatic(String className, String name, Object... args) throws ReflectiveOperationException {
+            return method(Class.forName(className), name, args.length).invoke(null, args);
+        }
+
+        private static int argb(Object colour) throws ReflectiveOperationException {
+            return (Integer) call(colour, "argb");
+        }
+
+        private static int darken(int argb) {
+            int r = (int) (((argb >> 16) & 0xFF) * 0.8F);
+            int g = (int) (((argb >> 8) & 0xFF) * 0.8F);
+            int b = (int) ((argb & 0xFF) * 0.8F);
+            return (argb & 0xFF000000) | r << 16 | g << 8 | b;
+        }
+
+        private static void warn(Exception e) {
+            com.hamish.emireorganised.EmiReorganised.LOGGER.warn("Simulated integration failed", e);
+        }
+
         static java.util.List<Section> sections() {
             java.util.List<Section> out = new java.util.ArrayList<>();
-            var manager = dev.simulated_team.simulated.index.SimResourceManagers.SIMULATED_SECTION;
-            for (var section : manager.sortedEntries()) {
-                ResourceLocation id = manager.getId(section);
-                if (id != null) {
-                    out.add(convert(id, section));
+            try {
+                Object m = manager();
+                for (Object section : (Iterable<?>) call(m, "sortedEntries")) {
+                    Object id = call(m, "getId", section);
+                    if (id instanceof ResourceLocation rl) {
+                        out.add(convert(rl, section));
+                    }
                 }
+            } catch (Exception e) {
+                warn(e);
             }
             return out;
         }
 
         @Nullable
-        static Section section(ResourceLocation id) {
-            var section = dev.simulated_team.simulated.index.SimResourceManagers.SIMULATED_SECTION.get(id);
-            return section == null ? null : convert(id, section);
+        private static Object get(ResourceLocation id) throws ReflectiveOperationException {
+            return call(manager(), "get", id);
         }
 
-        private static Section convert(ResourceLocation id, dev.simulated_team.simulated.client.sections.SimulatedSection section) {
-            var title = section.title();
-            int light = title.color().argb();
-            int dark = title.secondaryColor().orElse(title.color().darken(0.2F, new foundry.veil.api.client.color.Color())).argb();
-            return new Section(id, title.text(), light, dark, title.background().argb(), section.sprite());
+        @Nullable
+        static Section section(ResourceLocation id) {
+            try {
+                Object section = get(id);
+                return section == null ? null : convert(id, section);
+            } catch (Exception e) {
+                warn(e);
+                return null;
+            }
+        }
+
+        private static Section convert(ResourceLocation id, Object section) throws ReflectiveOperationException {
+            Object title = call(section, "title");
+            int light = argb(call(title, "color"));
+            java.util.Optional<?> secondary = (java.util.Optional<?>) call(title, "secondaryColor");
+            int dark = secondary.isPresent() ? argb(secondary.get()) : darken(light);
+            return new Section(id, (Component) call(title, "text"), light, dark, argb(call(title, "background")),
+                    (ResourceLocation) call(section, "sprite"));
         }
 
         @Nullable
         static ResourceLocation sectionOf(net.minecraft.world.item.Item item) {
-            return dev.simulated_team.simulated.registrate.SimulatedRegistrate.sectionOf(item);
+            try {
+                return (ResourceLocation) callStatic("dev.simulated_team.simulated.registrate.SimulatedRegistrate", "sectionOf", item);
+            } catch (Exception e) {
+                warn(e);
+                return null;
+            }
         }
 
         static void setPlaying(ResourceLocation sprite, boolean playing) {
-            dev.simulated_team.simulated.registrate.simulated_tab.SimulatedCreativeTab.setPlaying(sprite, playing);
+            try {
+                callStatic("dev.simulated_team.simulated.registrate.simulated_tab.SimulatedCreativeTab", "setPlaying", sprite, playing);
+            } catch (Exception e) {
+                warn(e);
+            }
         }
 
         @Nullable
         static BannerView view(ResourceLocation id, @Nullable String name, @Nullable Path image) {
-            var section = dev.simulated_team.simulated.index.SimResourceManagers.SIMULATED_SECTION.get(id);
-            if (section == null) {
+            try {
+                Object section = get(id);
+                if (section == null) {
+                    return null;
+                }
+                Section s = convert(id, section);
+                boolean animate = (Boolean) call(section, "animateOnHover");
+                Component text = name != null && !name.isEmpty() ? Component.literal(name) : s.title();
+                return new BannerView(text, s.color(), s.secondaryColor(), s.background(), s.sprite(), image,
+                        image != null || animate, BannerView.DEFAULT_LEFT, BannerView.DEFAULT_FILL, null, null);
+            } catch (Exception e) {
+                warn(e);
                 return null;
             }
-            var title = section.title();
-            int light = title.color().argb();
-            int dark = title.secondaryColor().orElse(title.color().darken(0.2F, new foundry.veil.api.client.color.Color())).argb();
-            Component text = name != null && !name.isEmpty() ? Component.literal(name) : title.text();
-            return new BannerView(text, light, dark, title.background().argb(), section.sprite(), image,
-                    image != null || section.animateOnHover(), BannerView.DEFAULT_LEFT, BannerView.DEFAULT_FILL, null, null);
         }
     }
 }
