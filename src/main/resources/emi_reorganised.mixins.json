@@ -1,7 +1,7 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "com.hamish.emireorganised.mixin",
+  "package": "com.bonsaibaggins.emireorganised.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
     "EmiExclusionAreasMixin",

@@ -1,0 +1,699 @@
+package com.bonsaibaggins.emireorganised.editor;
+
+import com.bonsaibaggins.emireorganised.data.BannerDef;
+import com.bonsaibaggins.emireorganised.data.ItemGroup;
+import com.bonsaibaggins.emireorganised.data.Tab;
+import com.bonsaibaggins.emireorganised.data.TabEntry;
+import com.bonsaibaggins.emireorganised.data.TabStore;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * The Tab Editor's working copy of every tab, plus the selection and clipboard. Nothing is written to disk until
+ * {@link #save()}.
+ */
+public final class EditorModel {
+    /** A cell in the centre grid: a tab entry, or (member >= 0) one item inside a group entry. */
+    public record Ref(int entry, int member) implements Comparable<Ref> {
+        public static Ref of(int entry) {
+            return new Ref(entry, -1);
+        }
+
+        public boolean isMember() {
+            return member >= 0;
+        }
+
+        @Override
+        public int compareTo(Ref o) {
+            return entry != o.entry ? Integer.compare(entry, o.entry) : Integer.compare(member, o.member);
+        }
+    }
+
+    public final List<Tab> tabs = new ArrayList<>();
+    public int tab;
+    /** Read-only copies of the vanilla creative tabs, shown instead of {@link #tabs} in creative mode. */
+    public final List<Tab> creative = new ArrayList<>();
+    public boolean creativeMode;
+    public int creativeTab;
+    @Nullable private Tab tabClipboard;
+    public final Set<Ref> selection = new LinkedHashSet<>();
+    /** Groups closed in the editor (by group id); groups start open. */
+    public final Set<String> closed = new HashSet<>();
+    private final List<TabEntry> clipboard = new ArrayList<>();
+    private boolean dirty;
+
+    /** Bumped on every change to the user's tabs, so views derived from them know to refresh. */
+    public int version;
+    /** The creative tab snapshot is slow to build, so it's kept for the session (per registry set). */
+    @Nullable private static List<Tab> creativeCache;
+    @Nullable private static Object creativeCacheKey;
+
+    public EditorModel() {
+        reload();
+        setAllOpen(false);
+    }
+
+    public void reload() {
+        tabs.clear();
+        TabStore.ensureLoaded();
+        for (Tab t : TabStore.tabs()) {
+            tabs.add(t.copy());
+        }
+        tab = Math.min(tab, Math.max(0, tabs.size() - 1));
+        selection.clear();
+        dirty = false;
+        clearHistory();
+    }
+
+    public void save() {
+        TabStore.setTabs(tabs.stream().map(Tab::copy).toList());
+        dirty = false;
+        clearHistory();
+    }
+
+    public boolean dirty() {
+        return dirty;
+    }
+
+    public void markDirty() {
+        markDirty(null);
+    }
+
+    private static final int HISTORY = 10;
+    private final java.util.ArrayDeque<List<Tab>> undo = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<List<Tab>> redo = new java.util.ArrayDeque<>();
+    /** The tabs as they were after the last recorded change: what an undo goes back to. */
+    private List<Tab> lastState = List.of();
+    @Nullable private String lastKey;
+    /** Changes made during the same editor frame (one click, key press or popup confirmation) are one undo step. */
+    private int frame;
+    private int lastPushFrame = -1;
+
+    public void nextFrame() {
+        frame++;
+    }
+
+    private List<Tab> snapshot() {
+        return tabs.stream().map(Tab::copy).toList();
+    }
+
+    /**
+     * Records a change to the user's tabs for undo. Consecutive changes with the same non-null key (e.g. typing in one
+     * text box) count as one change.
+     */
+    public void markDirty(@Nullable String key) {
+        dirty = true;
+        version++;
+        if (key != null ? !key.equals(lastKey) : frame != lastPushFrame) {
+            lastPushFrame = frame;
+            undo.push(lastState);
+            while (undo.size() > HISTORY) {
+                undo.removeLast();
+            }
+        }
+        lastKey = key;
+        redo.clear();
+        lastState = snapshot();
+    }
+
+    public void clearHistory() {
+        undo.clear();
+        redo.clear();
+        lastKey = null;
+        lastState = snapshot();
+    }
+
+    public boolean canUndo() {
+        return !undo.isEmpty() && !creativeMode;
+    }
+
+    public boolean canRedo() {
+        return !redo.isEmpty() && !creativeMode;
+    }
+
+    public void undo() {
+        if (canUndo()) {
+            redo.push(lastState);
+            restore(undo.pop());
+        }
+    }
+
+    public void redo() {
+        if (canRedo()) {
+            undo.push(lastState);
+            restore(redo.pop());
+        }
+    }
+
+    private void restore(List<Tab> state) {
+        tabs.clear();
+        state.forEach(t -> tabs.add(t.copy()));
+        tab = Math.min(tab, Math.max(0, tabs.size() - 1));
+        selection.clear();
+        lastKey = null;
+        lastPushFrame = -1;
+        lastState = snapshot();
+        dirty = true;
+        version++;
+    }
+
+    @Nullable
+    public Tab current() {
+        List<Tab> list = shown();
+        int i = shownIndex();
+        return i >= 0 && i < list.size() ? list.get(i) : null;
+    }
+
+    /** The tab list being shown: the user's tabs, or the creative tabs in creative mode. */
+    public List<Tab> shown() {
+        return creativeMode ? creative : tabs;
+    }
+
+    public int shownIndex() {
+        return creativeMode ? creativeTab : tab;
+    }
+
+    public void setCreativeMode(boolean on) {
+        if (on && creative.isEmpty()) {
+            var level = net.minecraft.client.Minecraft.getInstance().level;
+            if (level != null) {
+                if (creativeCache == null || creativeCacheKey != level.registryAccess()) {
+                    List<Tab> built = new ArrayList<>(TabStore.snapshot(level.registryAccess()));
+                    built.forEach(com.bonsaibaggins.emireorganised.data.Migration::addSectionBanners);
+                    creativeCache = built;
+                    creativeCacheKey = level.registryAccess();
+                }
+                creativeCache.forEach(t -> creative.add(t.copy()));
+                for (Tab t : creative) {
+                    for (TabEntry e : t.entries) {
+                        if (e instanceof TabEntry.Group g) {
+                            closed.add(g.group().id);
+                        }
+                    }
+                }
+            }
+        }
+        creativeMode = on;
+        selection.clear();
+    }
+
+    public void copyTab(Tab t) {
+        tabClipboard = t.copy();
+    }
+
+    public boolean canPasteTab() {
+        return tabClipboard != null && !creativeMode;
+    }
+
+    /** Pastes a copy of the copied tab after the current tab, with fresh tab and group ids. */
+    public void pasteTab() {
+        if (!canPasteTab()) {
+            return;
+        }
+        Tab t = new Tab(uniqueTabId(tabClipboard.name), tabClipboard.name);
+        t.icon = tabClipboard.icon.copy();
+        for (TabEntry e : tabClipboard.entries) {
+            t.entries.add(e instanceof TabEntry.Group g ? new TabEntry.Group(g.group().copy(uniqueGroupId(g.group().name))) : own(e.copy()));
+        }
+        tabs.add(Math.min(tab + 1, tabs.size()), t);
+        tab = tabs.indexOf(t);
+        selection.clear();
+        markDirty();
+    }
+
+    public ItemGroup newEmptyGroup(String name) {
+        ItemGroup group = new ItemGroup(uniqueGroupId(name), name);
+        entries().add(new TabEntry.Group(group));
+        selection.clear();
+        selection.add(Ref.of(entries().size() - 1));
+        markDirty();
+        return group;
+    }
+
+    public void deleteGroup(int tabIndex, int entry) {
+        List<TabEntry> entries = tabs.get(tabIndex).entries;
+        if (entry >= 0 && entry < entries.size() && entries.get(entry) instanceof TabEntry.Group) {
+            entries.remove(entry);
+            selection.clear();
+            markDirty();
+        }
+    }
+
+    private static List<ItemStack> stacksOf(List<TabEntry> items) {
+        List<ItemStack> out = new ArrayList<>();
+        for (TabEntry e : items) {
+            if (e instanceof TabEntry.Item item) {
+                out.add(item.stack());
+            } else if (e instanceof TabEntry.Group g) {
+                out.addAll(g.group().items);
+            }
+        }
+        return out;
+    }
+
+    /** An item may appear once per tab: removes every other copy of the {@code kept} stacks from the tab. */
+    private static void enforceUnique(List<TabEntry> entries, List<ItemStack> kept) {
+        Set<ItemStack> keep = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        keep.addAll(kept);
+        java.util.function.Predicate<ItemStack> duplicate = s -> !keep.contains(s)
+                && kept.stream().anyMatch(k -> ItemStack.isSameItemSameComponents(k, s));
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            TabEntry e = entries.get(i);
+            if (e instanceof TabEntry.Item item && duplicate.test(item.stack())) {
+                entries.remove(i);
+            } else if (e instanceof TabEntry.Group g && g.group().items.removeIf(duplicate) && g.group().items.isEmpty()) {
+                entries.remove(i);
+            }
+        }
+    }
+
+    private static int indexOfIdentity(List<?> list, Object o) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == o) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public List<TabEntry> entries() {
+        Tab t = current();
+        return t != null ? t.entries : new ArrayList<>();
+    }
+
+    public void selectTab(int index) {
+        if (creativeMode) {
+            if (index != creativeTab) {
+                creativeTab = index;
+                selection.clear();
+            }
+            return;
+        }
+        if (index != tab) {
+            tab = index;
+            selection.clear();
+        }
+    }
+
+    // ---- tabs ----
+
+    public void newTab(String name) {
+        Tab t = new Tab(uniqueTabId(name), name);
+        tabs.add(Math.min(tab + 1, tabs.size()), t);
+        tab = tabs.indexOf(t);
+        selection.clear();
+        markDirty();
+    }
+
+    private String uniqueTabId(String name) {
+        String base = name.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_]+", "_");
+        if (base.isBlank() || base.equals("_")) {
+            base = "tab";
+        }
+        String id = base;
+        for (int i = 2; containsTab(id); i++) {
+            id = base + "_" + i;
+        }
+        return id;
+    }
+
+    private boolean containsTab(String id) {
+        return tabs.stream().anyMatch(t -> t.id.equals(id));
+    }
+
+    public void deleteTab() {
+        if (current() != null) {
+            tabs.remove(tab);
+            tab = Math.max(0, Math.min(tab, tabs.size() - 1));
+            selection.clear();
+            markDirty();
+        }
+    }
+
+    public void moveTab(int delta) {
+        int to = tab + delta;
+        if (current() != null && to >= 0 && to < tabs.size()) {
+            tabs.add(to, tabs.remove(tab));
+            tab = to;
+            markDirty();
+        }
+    }
+
+    /** Moves tab {@code from} so it sits before the tab currently at {@code before} (or last). */
+    public void moveTabTo(int from, int before) {
+        if (from < 0 || from >= tabs.size()) {
+            return;
+        }
+        before = Math.max(0, Math.min(before, tabs.size()));
+        if (before == from || before == from + 1) {
+            return;
+        }
+        Tab open = current();
+        Tab moved = tabs.remove(from);
+        tabs.add(before > from ? before - 1 : before, moved);
+        tab = Math.max(0, tabs.indexOf(open));
+        markDirty();
+    }
+
+    /** After a group's item list changed: removes other copies of its items from the tab that owns it. */
+    public void groupChanged(ItemGroup group) {
+        markDirty();
+        for (Tab t : tabs) {
+            if (t.entries.stream().anyMatch(e -> e instanceof TabEntry.Group g && g.group() == group)) {
+                enforceUnique(t.entries, group.items);
+                return;
+            }
+        }
+    }
+
+    // ---- selection helpers ----
+
+    public boolean isSelected(Ref ref) {
+        return selection.contains(ref) || ref.isMember() && selection.contains(Ref.of(ref.entry()));
+    }
+
+    /** The selected items as stacks, in grid order (whole groups contribute all their items). */
+    public List<ItemStack> selectedStacks() {
+        List<ItemStack> out = new ArrayList<>();
+        List<TabEntry> entries = entries();
+        for (Ref ref : sortedSelection()) {
+            if (ref.entry() >= entries.size()) {
+                continue;
+            }
+            TabEntry e = entries.get(ref.entry());
+            if (ref.isMember() && e instanceof TabEntry.Group g && ref.member() < g.group().items.size()) {
+                out.add(g.group().items.get(ref.member()));
+            } else if (!ref.isMember() && e instanceof TabEntry.Item item) {
+                out.add(item.stack());
+            } else if (!ref.isMember() && e instanceof TabEntry.Group g) {
+                out.addAll(g.group().items);
+            }
+        }
+        return out;
+    }
+
+    public List<Ref> sortedSelection() {
+        List<Ref> refs = new ArrayList<>(selection);
+        refs.sort(Comparator.naturalOrder());
+        return refs;
+    }
+
+    @Nullable
+    public ItemGroup selectedGroup() {
+        if (selection.size() != 1) {
+            return null;
+        }
+        Ref ref = selection.iterator().next();
+        List<TabEntry> entries = entries();
+        return !ref.isMember() && ref.entry() < entries.size() && entries.get(ref.entry()) instanceof TabEntry.Group g ? g.group() : null;
+    }
+
+    // ---- editing ----
+
+    /** Removes the selected cells and returns them as standalone entries, in order. */
+    public List<TabEntry> removeSelection() {
+        List<TabEntry> entries = entries();
+        List<TabEntry> removed = new ArrayList<>();
+        List<Ref> refs = sortedSelection();
+        for (Ref ref : refs) {
+            if (ref.entry() >= entries.size()) {
+                continue;
+            }
+            TabEntry e = entries.get(ref.entry());
+            if (ref.isMember()) {
+                if (e instanceof TabEntry.Group g && ref.member() < g.group().items.size() && !selection.contains(Ref.of(ref.entry()))) {
+                    removed.add(new TabEntry.Item(g.group().items.get(ref.member()).copy()));
+                }
+            } else {
+                removed.add(e);
+            }
+        }
+        for (int i = refs.size() - 1; i >= 0; i--) {
+            Ref ref = refs.get(i);
+            if (ref.entry() >= entries.size()) {
+                continue;
+            }
+            if (ref.isMember()) {
+                if (!selection.contains(Ref.of(ref.entry())) && entries.get(ref.entry()) instanceof TabEntry.Group g
+                        && ref.member() < g.group().items.size()) {
+                    g.group().items.remove(ref.member());
+                }
+            }
+        }
+        for (int i = refs.size() - 1; i >= 0; i--) {
+            Ref ref = refs.get(i);
+            if (!ref.isMember() && ref.entry() < entries.size()) {
+                entries.remove(ref.entry());
+            }
+        }
+        entries.removeIf(e -> e instanceof TabEntry.Group g && g.group().items.isEmpty());
+        selection.clear();
+        if (!removed.isEmpty()) {
+            markDirty();
+        }
+        return removed;
+    }
+
+    public void delete() {
+        removeSelection();
+    }
+
+    public void copy() {
+        clipboard.clear();
+        List<TabEntry> entries = entries();
+        for (Ref ref : sortedSelection()) {
+            if (ref.entry() >= entries.size()) {
+                continue;
+            }
+            TabEntry e = entries.get(ref.entry());
+            if (ref.isMember()) {
+                if (!selection.contains(Ref.of(ref.entry())) && e instanceof TabEntry.Group g && ref.member() < g.group().items.size()) {
+                    clipboard.add(new TabEntry.Item(g.group().items.get(ref.member()).copy()));
+                }
+            } else {
+                clipboard.add(e.copy());
+            }
+        }
+    }
+
+    public void cut() {
+        copy();
+        removeSelection();
+    }
+
+    public boolean canPaste() {
+        return !clipboard.isEmpty();
+    }
+
+    /** Pastes after the last selected entry, or at the end. */
+    public void paste() {
+        if (clipboard.isEmpty() || current() == null) {
+            return;
+        }
+        List<TabEntry> entries = entries();
+        int at = selection.isEmpty() ? entries.size() : sortedSelection().getLast().entry() + 1;
+        List<TabEntry> copies = clipboard.stream().map(TabEntry::copy).map(EditorModel::own).toList();
+        insert(at, copies);
+    }
+
+    /** Inserts entries at a top-level position and selects them. */
+    public void insert(int at, List<TabEntry> items) {
+        List<TabEntry> entries = entries();
+        at = Math.max(0, Math.min(at, entries.size()));
+        entries.addAll(at, items);
+        enforceUnique(entries, stacksOf(items));
+        selection.clear();
+        for (TabEntry item : items) {
+            int i = indexOfIdentity(entries, item);
+            if (i >= 0) {
+                selection.add(Ref.of(i));
+            }
+        }
+        markDirty();
+    }
+
+    /** Inserts loose items into a group at a member position. */
+    public void insertIntoGroup(int entry, int member, List<ItemStack> stacks) {
+        if (!(entries().get(entry) instanceof TabEntry.Group g)) {
+            return;
+        }
+        List<ItemStack> items = g.group().items;
+        member = Math.max(0, Math.min(member, items.size()));
+        List<ItemStack> copies = stacks.stream().map(ItemStack::copy).toList();
+        items.addAll(member, copies);
+        List<TabEntry> entries = entries();
+        TabEntry groupEntry = entries.get(entry);
+        enforceUnique(entries, copies);
+        selection.clear();
+        int index = indexOfIdentity(entries, groupEntry);
+        for (ItemStack copy : copies) {
+            int m = indexOfIdentity(items, copy);
+            if (index >= 0 && m >= 0) {
+                selection.add(new Ref(index, m));
+            }
+        }
+        markDirty();
+    }
+
+    /**
+     * Moves the selection to a drop position: {@code entry} is the top-level index to insert before, and if
+     * {@code member >= 0} the drop goes inside that group. Whole groups and banners can't go inside a group.
+     */
+    public void moveSelection(int entry, int member) {
+        List<TabEntry> entries = entries();
+        if (selection.isEmpty()) {
+            return;
+        }
+        TabEntry anchor = entry < entries.size() ? entries.get(entry) : null;
+        int before = 0;
+        for (Ref ref : selection) {
+            if (!ref.isMember() && ref.entry() < entry) {
+                before++;
+            }
+        }
+        ItemGroup targetGroup = member >= 0 && anchor instanceof TabEntry.Group g ? g.group() : null;
+        int memberShift = 0;
+        if (targetGroup != null) {
+            for (Ref ref : selection) {
+                if (ref.isMember() && ref.entry() == entry && ref.member() < member) {
+                    memberShift++;
+                }
+            }
+        }
+        List<TabEntry> moved = removeSelection();
+        if (targetGroup != null && moved.stream().allMatch(e -> e instanceof TabEntry.Item)) {
+            int index = entries.indexOf(anchor);
+            if (index < 0) {
+                index = entries.size();
+                entries.add(new TabEntry.Group(targetGroup));
+            }
+            insertIntoGroup(index, member - memberShift, moved.stream().map(e -> ((TabEntry.Item) e).stack()).toList());
+            return;
+        }
+        int at = anchor != null && entries.contains(anchor) ? entries.indexOf(anchor) : entry - before;
+        insert(at, moved);
+    }
+
+    /** The single stack a selection ref points at, or null for a whole group or banner. */
+    @Nullable
+    public ItemStack stackAt(Ref ref) {
+        List<TabEntry> entries = entries();
+        if (ref.entry() < 0 || ref.entry() >= entries.size()) {
+            return null;
+        }
+        TabEntry e = entries.get(ref.entry());
+        if (e instanceof TabEntry.Item item) {
+            return item.stack();
+        }
+        if (ref.isMember() && e instanceof TabEntry.Group g && ref.member() < g.group().items.size()) {
+            return g.group().items.get(ref.member());
+        }
+        return null;
+    }
+
+    /** Banners linked to an addon section (e.g. from a creative tab) become our own banners when pasted. */
+    private static TabEntry own(TabEntry e) {
+        if (e instanceof TabEntry.Banner b && b.banner().section != null) {
+            return new TabEntry.Banner(BannerImageFiles.fromSection(b.banner()));
+        }
+        return e;
+    }
+
+    public ItemGroup newGroup(String id, String name) {
+        List<TabEntry> entries = entries();
+        int at = selection.isEmpty() ? entries.size() : sortedSelection().getFirst().entry();
+        List<ItemStack> stacks = selectedStacks().stream().map(ItemStack::copy).toList();
+        int before = (int) selection.stream().filter(r -> !r.isMember() && r.entry() < at).count();
+        removeSelection();
+        ItemGroup group = new ItemGroup(id, name);
+        group.items.addAll(stacks);
+        insert(Math.min(at - before, entries.size()), List.of(new TabEntry.Group(group)));
+        return group;
+    }
+
+    public void addToGroup(ItemGroup group, List<ItemStack> stacks) {
+        List<ItemStack> added = new ArrayList<>();
+        for (ItemStack stack : stacks) {
+            if (group.items.stream().noneMatch(s -> ItemStack.isSameItemSameComponents(s, stack))) {
+                ItemStack copy = stack.copy();
+                group.items.add(copy);
+                added.add(copy);
+            }
+        }
+        for (Tab t : tabs) {
+            if (t.entries.stream().anyMatch(e -> e instanceof TabEntry.Group g && g.group() == group)) {
+                enforceUnique(t.entries, added);
+                if (t == current()) {
+                    selection.clear();
+                }
+            }
+        }
+        markDirty();
+    }
+
+    public BannerDef newBanner(String name) {
+        BannerDef banner = new BannerDef(UUID.randomUUID().toString(), name);
+        List<TabEntry> entries = entries();
+        int at = selection.isEmpty() ? 0 : sortedSelection().getFirst().entry();
+        insert(at, List.of(new TabEntry.Banner(banner)));
+        return banner;
+    }
+
+    public boolean isOpen(ItemGroup group) {
+        return !closed.contains(group.id);
+    }
+
+    public void toggleOpen(ItemGroup group) {
+        if (!closed.remove(group.id)) {
+            closed.add(group.id);
+        }
+    }
+
+    public boolean anyOpen() {
+        return entries().stream().anyMatch(e -> e instanceof TabEntry.Group g && isOpen(g.group()));
+    }
+
+    /** Opens or closes every group in every tab. */
+    public void setAllOpen(boolean open) {
+        if (open) {
+            closed.clear();
+            return;
+        }
+        for (List<Tab> list : List.of(tabs, creative)) {
+            for (Tab t : list) {
+                for (TabEntry e : t.entries) {
+                    if (e instanceof TabEntry.Group g) {
+                        closed.add(g.group().id);
+                    }
+                }
+            }
+        }
+    }
+
+    public String uniqueGroupId(String name) {
+        String base = name.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_]+", "_");
+        if (base.isBlank() || base.equals("_")) {
+            base = "group";
+        }
+        Set<String> used = new HashSet<>();
+        for (Tab t : tabs) {
+            for (TabEntry e : t.entries) {
+                if (e instanceof TabEntry.Group g) {
+                    used.add(g.group().id);
+                }
+            }
+        }
+        String id = base;
+        for (int i = 2; used.contains(id); i++) {
+            id = base + "_" + i;
+        }
+        return id;
+    }
+}
