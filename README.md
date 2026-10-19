@@ -1,5 +1,6 @@
 # EMI-Reorganised
 Adding tabs, Sable-style banners, item groups, a custom item order, an in-game editor, and other small changes to EMI.
+
 <img width="696" height="285" alt="Preview" src="https://github.com/user-attachments/assets/4e2a431f-2daa-4db1-85f0-52e05e206157" />
 
 ## DISCLAIMERS
