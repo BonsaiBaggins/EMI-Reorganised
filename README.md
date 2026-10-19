@@ -7,7 +7,7 @@ Adding tabs, Sable-style banners, item groups, a custom item order, an in-game e
 ### Inspirations
 This mod is heavily based on [Recreative](https://github.com/evanbones/Recreative) and [Reliable-EMI](https://github.com/evanbones/Reliable-EMI), adding a very similar in-game editor and item groups.
 The key difference from Recreative is that Reorganised adds its own custom item list, establishing its own tabs without touching the creative ones.
-### !!!AI USE!!!
+### !!! AI USE !!!
 This mod is almost entirely coded by Devin AI. I am an entry-level coder at best, and although I am learning, a mod like this is well beyond my abilities. Therefore, I can't guarantee the quality of code in this mod. I also can't guarantee that I will be bugfixing/updating/porting this mod in the future (due to the cost of a Devin subscription), but that's also not an impossibility.
 
 I'm not a fan of low-effort AI-generated mods. In this case, I performed a lot of testing and reworking of features to ensure the mod is a smooth and usable experience. All the same, I won't be posting this mod to Curseforge/Modrinth for this reason.
@@ -41,7 +41,7 @@ EMI Reorganised achieves this goal in the following ways:
 ### Inventory
 <img width="1918" height="1017" alt="Inventory" src="https://github.com/user-attachments/assets/657db537-d211-4e34-9db3-1a9ed4a7d27c" />
 
-### Hideable Side panels
+### Hideable Side Panels
 <img width="1919" height="1018" alt="Inventory_Hidden_EMI" src="https://github.com/user-attachments/assets/dc71fe1f-3cde-4dc9-919a-b47f94444d23" />
 
 ### Create Schematic Lists
