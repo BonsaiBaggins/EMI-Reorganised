@@ -132,8 +132,12 @@ public class TabEditorScreen extends Screen {
         return cols * SLOT + 8;
     }
 
+    /** Centres the middle panel so the gaps to the left and right panels' backgrounds are equal. */
     private int gridX() {
-        return LEFT_W + 8;
+        int leftEdge = LEFT_W + 2;
+        int rightEdge = paletteX() - 2;
+        int panelW = gridCols() * SLOT + 6;
+        return leftEdge + Math.max(2, (rightEdge - leftEdge - panelW) / 2) + 3;
     }
 
     private int gridY() {
