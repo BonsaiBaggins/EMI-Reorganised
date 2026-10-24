@@ -1,5 +1,6 @@
 package com.bonsaibaggins.emireorganised.mixin;
 
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import com.bonsaibaggins.emireorganised.Config;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -35,6 +36,17 @@ public abstract class SearchBarMixin {
     private static void simemibanners$reserveSearch(EmiScreenManager.SidebarPanel panel, Screen screen, List<Bounds> exclusion,
                                                    boolean rtl, Bounds bounds, SidebarSettings settings, Operation<Void> original) {
         Config.SearchBarPosition mode = simemibanners$mode();
+        if (ReorganisedSkin.applies(panel)) {
+            // The skin has a search slot in every sidebar's frame; keep EMI from reserving its own search space.
+            boolean center = EmiConfig.centerSearchBar;
+            EmiConfig.centerSearchBar = true;
+            try {
+                original.call(panel, screen, exclusion, rtl, bounds, settings);
+            } finally {
+                EmiConfig.centerSearchBar = center;
+            }
+            return;
+        }
         if (com.bonsaibaggins.emireorganised.sidebar.FavouriteSearch.enabled()
                 && panel.supportsType(dev.emi.emi.config.SidebarType.FAVORITES)
                 && !panel.supportsType(dev.emi.emi.config.SidebarType.INDEX)
@@ -56,13 +68,11 @@ public abstract class SearchBarMixin {
         withSearch.add(new Bounds(bounds.x() - 2000, y, bounds.width() + 4000, simemibanners$SEARCH_SPACE));
         // Stop EMI/REMI from also reserving their own search bar space at the bottom of this panel.
         boolean center = EmiConfig.centerSearchBar;
-        boolean align = false;
         EmiConfig.centerSearchBar = true;
         try {
             original.call(panel, screen, withSearch, rtl, bounds, settings);
         } finally {
             EmiConfig.centerSearchBar = center;
-            
         }
     }
 
@@ -78,6 +88,15 @@ public abstract class SearchBarMixin {
 
     @Unique
     private static void simemibanners$place() {
+        if (EmiScreenManager.search == null) {
+            return;
+        }
+        ReorganisedSkin.Layout skin = ReorganisedSkin.layout(EmiScreenManager.getPanelFor(EmiConfig.searchSidebar));
+        EmiScreenManager.search.setBordered(skin == null);
+        if (skin != null) {
+            ReorganisedSkin.placeSearch(EmiScreenManager.search, skin, 4);
+            return;
+        }
         Config.SearchBarPosition mode = simemibanners$mode();
         if (mode == Config.SearchBarPosition.DEFAULT) {
             return;

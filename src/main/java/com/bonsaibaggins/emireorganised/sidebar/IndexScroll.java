@@ -1,6 +1,7 @@
 package com.bonsaibaggins.emireorganised.sidebar;
 
 import com.bonsaibaggins.emireorganised.Config;
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import dev.emi.emi.api.widget.Bounds;
 import dev.emi.emi.config.SidebarType;
 import dev.emi.emi.screen.EmiScreenManager;
@@ -40,7 +41,7 @@ public final class IndexScroll {
 
     /** Width a scrolling panel needs beyond EMI's normal frame padding to fit the bar (and, for the creative styles, a frame margin around it). */
     public static int extraWidth(@Nullable SidebarType type) {
-        if (!enabled(type)) {
+        if (!enabled(type) || ReorganisedSkin.enabled()) {
             return 0;
         }
         return BAR_INSET - 1 + trackWidth();
@@ -91,6 +92,11 @@ public final class IndexScroll {
             BARS.remove(type);
             return;
         }
+        ReorganisedSkin.Layout skin = ReorganisedSkin.layoutAt(space);
+        if (skin != null) {
+            BARS.put(type, skin.track());
+            return;
+        }
         boolean narrow = style() == Config.ScrollbarStyle.NARROW;
         int tw = trackWidth();
         int x = space.tx + space.tw * 18 + BAR_INSET;
@@ -115,9 +121,15 @@ public final class IndexScroll {
         graphics.fill(x + BAR_W - 1, ty + 1, x + BAR_W, ty + thumb, 0xFF808080);
     }
 
+    /** Scroll position from 0 to 1 of a scrolling panel, or -1 when it has nothing to scroll. */
+    public static float position(@Nullable SidebarType type) {
+        int max = type == null ? 0 : MAX.getOrDefault(type, 0);
+        return max <= 0 ? -1 : ROWS.getOrDefault(type, 0) / (float) max;
+    }
+
     private static int thumbHeight(int h, int max, int visibleRows) {
-        if (style() != Config.ScrollbarStyle.NARROW) {
-            return 15;
+        if (style() != Config.ScrollbarStyle.NARROW || ReorganisedSkin.enabled()) {
+            return ReorganisedSkin.THUMB_H;
         }
         return Math.max(8, Math.min(h, h * visibleRows / Math.max(1, visibleRows + max)));
     }

@@ -13,6 +13,7 @@
     "IndexGroupMixin",
     "SidebarPanelScrollMixin",
     "SidebarBackgroundMixin",
+    "SkinMixin",
     "FavouriteHeaderMixin",
     "SchematicFavouriteMixin",
     "SchematicFavouritesMixin",

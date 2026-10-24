@@ -1,5 +1,7 @@
 package com.bonsaibaggins.emireorganised.port;
 
+import dev.emi.emi.api.widget.Bounds;
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -56,7 +58,13 @@ public final class BannerRenderer {
                     int x = space.getX(0, row);
                     int w = space.getWidth(row) * ROW;
                     hovered = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + ROW;
-                    drawBanner(graphics, banner.view(), x, y, w, ROW);
+                    ReorganisedSkin.Layout skin = ReorganisedSkin.layoutAt(space);
+                    if (skin != null) {
+                        Bounds inner = skin.inner();
+                        drawBanner(graphics, banner.view(), inner.x(), y + 1, inner.width(), ROW - 2, false, true);
+                    } else {
+                        drawBanner(graphics, banner.view(), x, y, w, ROW);
+                    }
                 }
             }
             hovers.merge(banner.view(), hovered, Boolean::logicalOr);
@@ -111,6 +119,16 @@ public final class BannerRenderer {
     }
 
     public static void drawBanner(GuiGraphics graphics, BannerView view, int x, int y, int w, int h) {
+        drawBanner(graphics, view, x, y, w, h, true);
+    }
+
+    public static void drawBanner(GuiGraphics graphics, BannerView view, int x, int y, int w, int h, boolean bevel) {
+        drawBanner(graphics, view, x, y, w, h, bevel, false);
+    }
+
+    /** {@code crop} drops the artwork's own 1px frame, so the banner can sit flush against the skin's panel edges. */
+    public static void drawBanner(GuiGraphics graphics, BannerView view, int x, int y, int w, int h, boolean bevel,
+                                  boolean crop) {
         if (w <= 0) {
             return;
         }
@@ -119,15 +137,21 @@ public final class BannerRenderer {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         graphics.flush();
 
-        Source source = source(view);
+        Source source = source(view, crop);
         if (source == null) {
-            graphics.fill(x, y, x + w, y + h, 0xFF8B8B8B);
-            DitherGradient.draw(graphics, x + 1, y + 1, x + w - 1, y + h - 1, view.fillColours());
+            if (crop) {
+                DitherGradient.draw(graphics, x, y, x + w, y + h, view.fillColours());
+            } else {
+                graphics.fill(x, y, x + w, y + h, 0xFF8B8B8B);
+                DitherGradient.draw(graphics, x + 1, y + 1, x + w - 1, y + h - 1, view.fillColours());
+            }
             graphics.flush();
         } else {
             drawBackground(graphics, source, x, y, w, h);
         }
-        drawBevel(graphics, x, y, w, h);
+        if (bevel) {
+            drawBevel(graphics, x, y, w, h);
+        }
         drawTitle(graphics, view, x, y, w, h);
     }
 
@@ -142,20 +166,25 @@ public final class BannerRenderer {
         }
     }
 
-    private static Source source(BannerView view) {
+    private static Source source(BannerView view, boolean crop) {
+        int inset = crop ? 1 : 0;
         if (view.image() != null) {
             BannerImages.Image image = BannerImages.get(view.image());
             if (image != null) {
                 int frame = image.frame();
-                float v0 = (float) (frame * image.frameHeight) / image.height;
-                float v1 = (float) ((frame + 1) * image.frameHeight) / image.height;
-                return new Source(image.texture, Math.max(image.width, 3), 0, 1, v0, v1, image.edges);
+                float v0 = (float) (frame * image.frameHeight + inset) / image.height;
+                float v1 = (float) ((frame + 1) * image.frameHeight - inset) / image.height;
+                float u = (float) inset / image.width;
+                return new Source(image.texture, Math.max(image.width - inset * 2, 3), u, 1 - u, v0, v1, image.edges);
             }
         }
         if (view.sprite() != null) {
             TextureAtlasSprite sprite = Minecraft.getInstance().getGuiSprites().getSprite(view.sprite());
-            return new Source(sprite.atlasLocation(), Math.max(sprite.contents().width(), 3), sprite.getU0(),
-                    sprite.getU1(), sprite.getV0(), sprite.getV1(), edgeColours(sprite));
+            int width = sprite.contents().width();
+            float du = (sprite.getU1() - sprite.getU0()) * inset / width;
+            float dv = (sprite.getV1() - sprite.getV0()) * inset / sprite.contents().height();
+            return new Source(sprite.atlasLocation(), Math.max(width - inset * 2, 3), sprite.getU0() + du,
+                    sprite.getU1() - du, sprite.getV0() + dv, sprite.getV1() - dv, edgeColours(sprite));
         }
         return null;
     }

@@ -56,6 +56,7 @@
   "emi_reorganised.config.keybind": "Open Editor Keybind",
   "emi_reorganised.config.keybind.tip": "Opens Controls > Key Binds, where the Open Editor key is listed under EMI Reorganised.",
   "emi_reorganised.config.index": "Index",
+  "emi_reorganised.config.reorganisedVanillaSkin": "Reorganised Vanilla Skin",
   "emi_reorganised.config.sidebarButtons": "Sidebar Roll Buttons",
   "emi_reorganised.config.searchBar": "Search Bar",
   "emi_reorganised.config.editor": "Tab Editor",

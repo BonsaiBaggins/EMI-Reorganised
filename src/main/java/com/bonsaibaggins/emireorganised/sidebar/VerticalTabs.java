@@ -1,5 +1,6 @@
 package com.bonsaibaggins.emireorganised.sidebar;
 
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import com.bonsaibaggins.emireorganised.Config;
 import com.bonsaibaggins.emireorganised.data.Tab;
 import com.bonsaibaggins.emireorganised.data.TabState;
@@ -12,6 +13,7 @@ import dev.emi.emi.screen.EmiScreenManager;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -48,6 +50,13 @@ public final class VerticalTabs {
         int y0;
         int step = 1;
         int visibleCount;
+        /** Skin only: smooth scroll position in pixels, the tab strip's visible span and the arrows. */
+        float offset;
+        boolean skinned;
+        int top;
+        int bottom;
+        @Nullable Bounds upArrow;
+        @Nullable Bounds downArrow;
 
         abstract boolean enabled();
 
@@ -311,6 +320,12 @@ public final class VerticalTabs {
         if (panel == null || panel.getType() != column.type()) {
             return;
         }
+        column.skinned = false;
+        ReorganisedSkin.Layout skin = ReorganisedSkin.layout(panel);
+        if (skin != null) {
+            renderSkinned(column, skin, graphics, mouseX, mouseY);
+            return;
+        }
         Bounds bounds = panel.getBounds();
         int s = size();
         int w = column.width();
@@ -393,6 +408,112 @@ public final class VerticalTabs {
         }
     }
 
+    private static final int SKIN_TAB = 26;
+    private static final int SKIN_TAB_SELECTED = 33;
+    /** How far a selected tab reaches out of the frame; unselected tabs reach 2px less. */
+    private static final int SKIN_REACH = 28;
+    private static final int SKIN_ARROW_W = 12;
+    private static final int SKIN_ARROW_H = 7;
+
+    /**
+     * Tabs in the Reorganised Vanilla skin: they run along the frame's inventory-facing edge between the top of the
+     * search slot and the bottom of the item panel, scroll smoothly, and are cut off and dimmed where they cross it.
+     */
+    private static void renderSkinned(Column column, ReorganisedSkin.Layout skin, GuiGraphics graphics, int mouseX, int mouseY) {
+        boolean left = column.leftOfPanel();
+        Bounds frame = skin.frame();
+        int root = left ? frame.x() : frame.right();
+        int top = frame.y() + ReorganisedSkin.EDGE;
+        int bottom = frame.bottom() - ReorganisedSkin.EDGE;
+        int step = SKIN_TAB + spacing();
+        List<Entry> entries = column.entries();
+        int maxPx = Math.max(0, entries.size() * step - spacing() - (bottom - top));
+        column.scroll = Math.max(0, Math.min(column.scroll, (maxPx + step - 1) / step));
+        float target = Math.min(column.scroll * step, maxPx);
+        column.offset += (target - column.offset) * 0.4F;
+        if (Math.abs(target - column.offset) < 0.5F) {
+            column.offset = target;
+        }
+        int y0 = top - Math.round(column.offset);
+        int x = left ? root - SKIN_REACH : root;
+        int ix = left ? root - SKIN_TAB + 5 : root + 5;
+        column.skinned = true;
+        column.top = top;
+        column.bottom = bottom;
+        column.step = step;
+        column.y0 = y0 + column.scroll * step;
+        column.visibleCount = Math.max(1, (bottom - top) / step);
+        int ax = ix + 8 - SKIN_ARROW_W / 2;
+        column.upArrow = maxPx > 0 ? new Bounds(ax, frame.y() - 4, SKIN_ARROW_W, SKIN_ARROW_H) : null;
+        column.downArrow = maxPx > 0 ? new Bounds(ax, frame.bottom() - 3, SKIN_ARROW_W, SKIN_ARROW_H) : null;
+        column.area = new Bounds(x, frame.y() - 4, SKIN_REACH, frame.height() + 8);
+        int selectedIndex = column.selected();
+        Entry hovered = null;
+        var font = Minecraft.getInstance().font;
+        graphics.enableScissor(left ? root - 40 : root - 8, top, left ? root + 8 : root + 40, bottom);
+        for (int i = 0; i < entries.size(); i++) {
+            int y = y0 + i * step;
+            if (y + SKIN_TAB <= top || y >= bottom) {
+                continue;
+            }
+            Entry entry = entries.get(i);
+            boolean selected = i == selectedIndex;
+            boolean hover = mouseX >= x && mouseX < x + SKIN_REACH && mouseY >= Math.max(y, top)
+                    && mouseY < Math.min(y + SKIN_TAB, bottom);
+            boolean raised = selected || hover;
+            if (!selected) {
+                // Unselected and hovered tabs sit behind the frame.
+                if (left) {
+                    graphics.enableScissor(root - 40, y, root, y + SKIN_TAB);
+                } else {
+                    graphics.enableScissor(root, y, root + 40, y + SKIN_TAB);
+                }
+            }
+            boolean cropped = y < top || y + SKIN_TAB > bottom;
+            if (cropped) {
+                graphics.setColor(0.5F, 0.5F, 0.5F, 1.0F);
+            }
+            ResourceLocation sprite = left ? (raised ? ReorganisedSkin.TAB_RIGHT_SELECTED : ReorganisedSkin.TAB_RIGHT)
+                    : (raised ? ReorganisedSkin.TAB_LEFT_SELECTED : ReorganisedSkin.TAB_LEFT);
+            int width = raised ? SKIN_TAB_SELECTED : SKIN_TAB;
+            int sx = left ? root - (raised ? SKIN_REACH : SKIN_TAB) : root - (raised ? SKIN_TAB_SELECTED - SKIN_REACH : 0);
+            graphics.blitSprite(sprite, sx, y, width, SKIN_TAB);
+            if (entry.plus()) {
+                graphics.drawString(font, "+", ix + 8 - font.width("+") / 2, y + 9, 0xFF404040, false);
+            } else {
+                graphics.renderItem(entry.icon(), ix, y + 5);
+            }
+            if (cropped) {
+                graphics.flush();
+                graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+            }
+            if (!selected) {
+                graphics.disableScissor();
+            }
+            if (hover) {
+                hovered = entry;
+            }
+        }
+        graphics.disableScissor();
+        if (column == FAVOURITES && dragFrom >= 0 && dragMoved) {
+            int target2 = dropIndex(column, dragY, entries.size() - 1);
+            int ly = column.y0 + (target2 - column.scroll) * step + (target2 > dragFrom ? SKIN_TAB + spacing() / 2 : -1 - spacing() / 2);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            graphics.fill(x, ly, x + SKIN_REACH, ly + 2, 0xFFFFFFFF);
+            graphics.pose().popPose();
+        }
+        if (column.upArrow != null) {
+            ReorganisedSkin.blit(graphics, ReorganisedSkin.SCROLL_UP, column.upArrow);
+            ReorganisedSkin.blit(graphics, ReorganisedSkin.SCROLL_DOWN, column.downArrow);
+        }
+        if (hovered != null) {
+            tooltip = hovered.name();
+            tooltipX = mouseX;
+            tooltipY = mouseY;
+        }
+    }
+
     /** Blits a GUI sprite with its axes swapped, so the sprite's length runs across the screen. */
     private static void drawTransposed(GuiGraphics graphics, ResourceLocation id, int x, int y, int w, int h) {
         net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = Minecraft.getInstance().getGuiSprites().getSprite(id);
@@ -439,13 +560,13 @@ public final class VerticalTabs {
         int h = MENU.length * 12 + 4;
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
-        graphics.fill(menuX, menuY, menuX + w, menuY + h, 0xF0100010);
-        graphics.renderOutline(menuX, menuY, w, h, 0xFF5000FF);
+        // The tooltip background reaches 4px past the box it is given.
+        TooltipRenderUtil.renderTooltipBackground(graphics, menuX + 4, menuY + 4, w - 8, h - 8, 0);
         int hover = menuRow(mouseX, mouseY);
         for (int i = 0; i < MENU.length; i++) {
             int y = menuY + 2 + i * 12;
             if (i == hover) {
-                graphics.fill(menuX + 1, y, menuX + w - 1, y + 12, 0x40FFFFFF);
+                graphics.fill(menuX + 2, y, menuX + w - 2, y + 12, 0x40FFFFFF);
             }
             graphics.drawString(font, Component.translatable(MENU[i]), menuX + 4, y + 2, 0xFFFFFF);
         }
@@ -487,23 +608,43 @@ public final class VerticalTabs {
         if (panel == null) {
             return false;
         }
-        Bounds bounds = panel.getBounds();
-        int s = size();
-        int step = s + spacing();
         List<Entry> entries = column.entries();
-        int visible = Math.max(1, (bounds.height() - (entries.size() * step > bounds.height() ? 20 : 0)) / step);
-        boolean scrolling = entries.size() > visible;
-        int y0 = a.y() + (scrolling ? 10 : 0);
-        if (button == 0 && scrolling && mouseY < y0) {
-            column.scroll = Math.max(0, column.scroll - 1);
-            return true;
+        int i;
+        boolean onTab;
+        if (column.skinned) {
+            if (column.upArrow != null && column.upArrow.contains((int) mouseX, (int) mouseY)) {
+                column.scroll = Math.max(0, column.scroll - 1);
+                return true;
+            }
+            if (column.downArrow != null && column.downArrow.contains((int) mouseX, (int) mouseY)) {
+                column.scroll++;
+                return true;
+            }
+            if (mouseY < column.top || mouseY >= column.bottom) {
+                return false;
+            }
+            int rel = (int) Math.floor(mouseY - column.y0);
+            i = column.scroll + Math.floorDiv(rel, column.step);
+            onTab = Math.floorMod(rel, column.step) < SKIN_TAB;
+        } else {
+            Bounds bounds = panel.getBounds();
+            int s = size();
+            int step = s + spacing();
+            int visible = Math.max(1, (bounds.height() - (entries.size() * step > bounds.height() ? 20 : 0)) / step);
+            boolean scrolling = entries.size() > visible;
+            int y0 = a.y() + (scrolling ? 10 : 0);
+            if (button == 0 && scrolling && mouseY < y0) {
+                column.scroll = Math.max(0, column.scroll - 1);
+                return true;
+            }
+            i = column.scroll + (int) ((mouseY - y0) / step);
+            if (button == 0 && scrolling && i >= column.scroll + visible) {
+                column.scroll++;
+                return true;
+            }
+            onTab = (mouseY - y0) % step < s;
         }
-        int i = column.scroll + (int) ((mouseY - y0) / step);
-        if (button == 0 && scrolling && i >= column.scroll + visible) {
-            column.scroll++;
-            return true;
-        }
-        if (i >= 0 && i < entries.size() && (mouseY - y0) % step < s) {
+        if (i >= 0 && i < entries.size() && onTab) {
             if (button == 1) {
                 column.rightClick(i, (int) mouseX, (int) mouseY);
                 return true;

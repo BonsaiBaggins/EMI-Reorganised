@@ -1,5 +1,6 @@
 package com.bonsaibaggins.emireorganised.editor;
 
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import com.bonsaibaggins.emireorganised.Config;
 import dev.emi.emi.api.widget.Bounds;
 import java.util.function.Consumer;
@@ -52,6 +53,10 @@ public final class OpenEditorButton extends Button {
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         place();
         if (!visible) {
+            return;
+        }
+        if (ReorganisedSkin.enabled()) {
+            graphics.blitSprite(isHoveredOrFocused() ? ReorganisedSkin.EDIT_HIGHLIGHTED : ReorganisedSkin.EDIT, getX(), getY(), SIZE, SIZE);
             return;
         }
         setMessage(Component.empty());

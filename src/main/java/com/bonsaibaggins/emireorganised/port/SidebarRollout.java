@@ -1,5 +1,6 @@
 package com.bonsaibaggins.emireorganised.port;
 
+import com.bonsaibaggins.emireorganised.skin.ReorganisedSkin;
 import dev.emi.emi.api.widget.Bounds;
 import dev.emi.emi.config.SidebarSide;
 import dev.emi.emi.screen.EmiScreenBase;
@@ -127,6 +128,26 @@ public final class SidebarRollout {
             return null;
         }
         EmiScreenManager.SidebarPanel panel = EmiScreenManager.getPanelFor(i == LEFT ? SidebarSide.LEFT : SidebarSide.RIGHT);
+        int sw = base.screen().width;
+        int sh = base.screen().height;
+        Bounds container = base.bounds();
+        if (ReorganisedSkin.enabled()) {
+            ReorganisedSkin.Layout skin = ReorganisedSkin.layout(panel);
+            if (skin == null && shown[i]) {
+                return null;
+            }
+            int bw = ReorganisedSkin.ROLL_W;
+            int x;
+            if (i == LEFT) {
+                x = skin != null ? skin.frame().right() + ReorganisedSkin.ROLL_GAP : ReorganisedSkin.SCREEN_GAP;
+                x = Math.max(ReorganisedSkin.SCREEN_GAP, Math.min(x, container.left() - bw));
+            } else {
+                x = skin != null ? skin.frame().left() - ReorganisedSkin.ROLL_GAP - bw : sw - bw - ReorganisedSkin.SCREEN_GAP;
+                x = Math.min(sw - bw - ReorganisedSkin.SCREEN_GAP, Math.max(x, container.right()));
+            }
+            // Centred on the screen, not the sidebar, so both buttons line up even when the left one is shortened.
+            return new int[] {x, (sh - ReorganisedSkin.ROLL_H) / 2, bw, ReorganisedSkin.ROLL_H};
+        }
         Bounds bounds = panel != null && panel.space != null && panel.isVisible() ? panel.getBounds() : null;
         if (bounds != null) {
             // The frame grows to the right for a scroll bar; EMI's bounds don't include that.
@@ -139,9 +160,6 @@ public final class SidebarRollout {
         if (bounds == null && shown[i]) {
             return null;
         }
-        int sw = base.screen().width;
-        int sh = base.screen().height;
-        Bounds container = base.bounds();
         int bw = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_WIDTH);
         int bh = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_HEIGHT);
         int pad = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_PADDING);
@@ -179,9 +197,16 @@ public final class SidebarRollout {
             if (hovered) {
                 tooltipSide = i;
             }
-            graphics.blitSprite(hovered ? BUTTON_HOVERED : BUTTON, r[0], r[1], r[2], r[3]);
             // Points to the screen centre to roll the sidebar in, to the edge to roll it out.
             boolean pointRight = (i == LEFT) != shown[i];
+            if (ReorganisedSkin.enabled()) {
+                ResourceLocation sprite = pointRight
+                        ? (hovered ? ReorganisedSkin.ROLL_RIGHT_HIGHLIGHTED : ReorganisedSkin.ROLL_RIGHT)
+                        : (hovered ? ReorganisedSkin.ROLL_LEFT_HIGHLIGHTED : ReorganisedSkin.ROLL_LEFT);
+                graphics.blitSprite(sprite, r[0], r[1], r[2], r[3]);
+                continue;
+            }
+            graphics.blitSprite(hovered ? BUTTON_HOVERED : BUTTON, r[0], r[1], r[2], r[3]);
             int size = Math.max(2, Math.min((r[3] - 4) / 2, r[2] / 2));
             int ax = r[0] + (r[2] - size) / 2;
             int cy = r[1] + r[3] / 2;

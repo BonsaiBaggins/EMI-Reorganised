@@ -10,6 +10,11 @@ public final class Config {
         BUILDER.comment("The EMI item index.").push("index");
     }
 
+    public static final ModConfigSpec.BooleanValue REORGANISED_SKIN = BUILDER
+            .comment("Draw EMI's left and right sidebars with the Reorganised Vanilla skin, whatever theme EMI is set to.",
+                    "Its sprites live under assets/emi_reorganised/textures/gui/sprites/skin/ and can be replaced by resource packs.")
+            .define("reorganisedVanillaSkin", true);
+
     public static final ModConfigSpec.BooleanValue SHOW_BANNERS_WHILE_SEARCHING = BUILDER
             .comment("Keep banners visible while a search is typed.")
             .define("showBannersWhileSearching", false);

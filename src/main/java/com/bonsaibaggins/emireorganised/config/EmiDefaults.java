@@ -4,7 +4,6 @@ import com.bonsaibaggins.emireorganised.EmiReorganised;
 import com.bonsaibaggins.emireorganised.data.TabStore;
 import dev.emi.emi.config.ButtonVisibility;
 import dev.emi.emi.config.EmiConfig;
-import dev.emi.emi.config.SidebarTheme;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,8 +26,6 @@ public final class EmiDefaults {
             return;
         }
         try {
-            EmiConfig.leftSidebarTheme = SidebarTheme.VANILLA;
-            EmiConfig.rightSidebarTheme = SidebarTheme.VANILLA;
             EmiConfig.leftSidebarSize.values.set(0, 9);
             EmiConfig.rightSidebarSize.values.set(0, 9);
             EmiConfig.emiConfigButtonVisibility = ButtonVisibility.HIDDEN;
@@ -40,7 +37,7 @@ public final class EmiDefaults {
         }
         try {
             Files.createDirectories(marker.getParent());
-            Files.writeString(marker, "Delete this file to re-apply EMI Reorganised's EMI defaults (vanilla theme, 9 columns, hidden corner buttons).\n");
+            Files.writeString(marker, "Delete this file to re-apply EMI Reorganised's EMI defaults (9 columns, hidden corner buttons).\n");
         } catch (IOException e) {
             EmiReorganised.LOGGER.warn("Couldn't write {}", marker, e);
         }
