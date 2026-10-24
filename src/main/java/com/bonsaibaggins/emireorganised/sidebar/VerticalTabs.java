@@ -461,15 +461,16 @@ public final class VerticalTabs {
             boolean hover = mouseX >= x && mouseX < x + SKIN_REACH && mouseY >= Math.max(y, top)
                     && mouseY < Math.min(y + SKIN_TAB, bottom);
             boolean raised = selected || hover;
-            if (!selected) {
-                // Unselected and hovered tabs sit behind the frame.
+            boolean cropped = y < top || y + SKIN_TAB > bottom;
+            // Unselected, hovered and cut-off tabs sit behind the frame; only a fully visible selected tab joins it.
+            boolean behind = !selected || cropped;
+            if (behind) {
                 if (left) {
                     graphics.enableScissor(root - 40, y, root, y + SKIN_TAB);
                 } else {
                     graphics.enableScissor(root, y, root + 40, y + SKIN_TAB);
                 }
             }
-            boolean cropped = y < top || y + SKIN_TAB > bottom;
             if (cropped) {
                 graphics.setColor(0.5F, 0.5F, 0.5F, 1.0F);
             }
@@ -487,7 +488,7 @@ public final class VerticalTabs {
                 graphics.flush();
                 graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
             }
-            if (!selected) {
+            if (behind) {
                 graphics.disableScissor();
             }
             if (hover) {
