@@ -36,6 +36,26 @@ public abstract class ScreenSpaceMixin {
     @Unique
     private int emireorganised$offset;
 
+    @Unique
+    private int emireorganised$pixel;
+
+    /** Smooth scrolling draws the rows shifted up; find the stack under the mouse the same way, inside the panel only. */
+    @WrapMethod(method = "getRawOffsetFromMouse")
+    private int emireorganised$scrolledOffset(int mouseX, int mouseY, Operation<Integer> operation) {
+        EmiScreenManager.ScreenSpace space = (EmiScreenManager.ScreenSpace) (Object) this;
+        int pixel = com.bonsaibaggins.emireorganised.sidebar.IndexScroll.pixel(space.getType());
+        com.bonsaibaggins.emireorganised.skin.ReorganisedSkin.Layout skin =
+                pixel == 0 && !com.bonsaibaggins.emireorganised.sidebar.IndexScroll.enabled(space.getType())
+                        ? null : com.bonsaibaggins.emireorganised.skin.ReorganisedSkin.layoutAt(space);
+        if (skin == null) {
+            return operation.call(mouseX, mouseY);
+        }
+        if (mouseY < skin.inner().y() || mouseY >= skin.inner().bottom()) {
+            return -1;
+        }
+        return operation.call(mouseX, mouseY + pixel);
+    }
+
     @WrapMethod(method = "getStacks")
     private List<? extends EmiIngredient> emireorganised$stacks(Operation<List<? extends EmiIngredient>> operation) {
         List<? extends EmiIngredient> full = emireorganised$fullStacks(operation);
@@ -44,8 +64,10 @@ public abstract class ScreenSpaceMixin {
         if (full != null && com.bonsaibaggins.emireorganised.sidebar.IndexScroll.enabled(space.getType())) {
             offset = Math.min(full.size(), com.bonsaibaggins.emireorganised.sidebar.IndexScroll.row(space, space.getType(), full.size()) * space.tw);
         }
-        if (offset != emireorganised$offset) {
+        int pixel = com.bonsaibaggins.emireorganised.sidebar.IndexScroll.pixel(space.getType());
+        if (offset != emireorganised$offset || pixel != emireorganised$pixel) {
             emireorganised$offset = offset;
+            emireorganised$pixel = pixel;
             batcher.repopulate();
         }
         return offset == 0 || full == null ? full : full.subList(offset, full.size());
@@ -140,6 +162,6 @@ public abstract class ScreenSpaceMixin {
         }
         startIndex += emireorganised$offset;
         BannerRenderer.render((EmiScreenManager.ScreenSpace) (Object) this, emireorganised$layout, context.raw(),
-                mouseX, mouseY, startIndex);
+                mouseX, mouseY + emireorganised$pixel, startIndex);
     }
 }

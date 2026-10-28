@@ -15,7 +15,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
-/** A search bar drawn in place of the favourites sidebar's header, filtering the favourites shown. */
+/** The skin's favourites search bar, set into the favourites sidebar's frame, filtering the favourites shown. */
 public final class FavouriteSearch {
     @Nullable private static EditBox box;
     private static boolean shown;
@@ -26,7 +26,7 @@ public final class FavouriteSearch {
     }
 
     public static boolean enabled() {
-        return Config.get(Config.FAVOURITE_SEARCH);
+        return ReorganisedSkin.enabled();
     }
 
     public static String query() {
@@ -70,19 +70,15 @@ public final class FavouriteSearch {
         return box;
     }
 
-    /** Draws the bar above the favourites panel (whose header is turned off). */
-    public static void render(GuiGraphics graphics, EmiScreenManager.ScreenSpace space, int y, int mouseX, int mouseY, float delta) {
-        EditBox b = box();
+    /** Draws the bar in the skin's search slot of the favourites sidebar. */
+    public static void render(GuiGraphics graphics, EmiScreenManager.ScreenSpace space, int mouseX, int mouseY, float delta) {
         ReorganisedSkin.Layout skin = ReorganisedSkin.layoutAt(space);
-        b.setBordered(skin == null);
-        if (skin != null) {
-            ReorganisedSkin.placeSearch(b, skin, 3);
-        } else {
-            b.setX(space.tx);
-            b.setY(y);
-            b.setWidth(Math.max(10, space.tw * 18));
-            b.setHeight(18);
+        if (skin == null) {
+            return;
         }
+        EditBox b = box();
+        b.setBordered(false);
+        ReorganisedSkin.placeSearch(b, skin, 3);
         b.render(graphics, mouseX, mouseY, delta);
         shown = true;
     }
@@ -108,7 +104,8 @@ public final class FavouriteSearch {
         if (!active()) {
             return;
         }
-        boolean inside = shown && box.isMouseOver(event.getMouseX(), event.getMouseY());
+        boolean inside = shown && box.isMouseOver(event.getMouseX(), event.getMouseY())
+                && !VerticalTabs.covered(event.getMouseX(), event.getMouseY());
         if (inside) {
             box.setFocused(true);
             if (event.getButton() == 1) {

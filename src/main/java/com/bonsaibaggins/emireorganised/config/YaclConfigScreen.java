@@ -2,7 +2,6 @@ package com.bonsaibaggins.emireorganised.config;
 
 import com.bonsaibaggins.emireorganised.Config;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
-import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
@@ -11,9 +10,7 @@ import dev.isxander.yacl3.api.controller.EnumControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
 import java.util.Locale;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -26,20 +23,11 @@ public final class YaclConfigScreen {
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
                 .title(Component.translatable("emi_reorganised.config.title"))
                 .save(Config.SPEC::save);
-        boolean first = true;
         for (UnmodifiableConfig.Entry section : Config.SPEC.getValues().entrySet()) {
             if (!(section.getValue() instanceof UnmodifiableConfig values)) {
                 continue;
             }
             ConfigCategory.Builder category = ConfigCategory.createBuilder().name(name(section.getKey()));
-            if (first) {
-                first = false;
-                category.option(ButtonOption.createBuilder()
-                        .name(Component.translatable("emi_reorganised.config.keybind"))
-                        .description(OptionDescription.of(Component.translatable("emi_reorganised.config.keybind.tip")))
-                        .action(screen -> Minecraft.getInstance().setScreen(new KeyBindsScreen(screen, Minecraft.getInstance().options)))
-                        .build());
-            }
             for (UnmodifiableConfig.Entry entry : values.entrySet()) {
                 Option<?> option = option(entry.getKey(), entry.getValue());
                 if (option != null) {

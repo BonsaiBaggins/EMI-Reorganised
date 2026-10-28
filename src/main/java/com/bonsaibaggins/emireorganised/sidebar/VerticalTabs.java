@@ -22,24 +22,13 @@ import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Columns of vanilla-style tab buttons on the outer edge of EMI's sidebars: one beside the index (our tabs, with
+ * Part of the Reorganised Vanilla skin: columns of tab buttons on the inventory-facing edge of EMI's sidebars: one beside the index (our tabs, with
  * "Search All" first) and one beside the favourites (favourite lists, with a "+" tab to add one).
  */
 public final class VerticalTabs {
-    /** How far the tabs sit over (and below the top of) the sidebar, so the selected tab joins the vanilla frame. */
-    private static final int OVERLAP = 3;
-    private static final ResourceLocation SCROLL_UP = ResourceLocation.withDefaultNamespace("transferable_list/move_up");
-    private static final ResourceLocation SCROLL_DOWN = ResourceLocation.withDefaultNamespace("transferable_list/move_down");
-    /** Vanilla creative tab sprites, drawn transposed (rotated 90 degrees anticlockwise, then flipped vertically). */
-    private static final ResourceLocation LEFT_UNSELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_unselected_2");
-    private static final ResourceLocation LEFT_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_top_selected_2");
-    private static final ResourceLocation RIGHT_UNSELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_bottom_unselected_2");
-    private static final ResourceLocation RIGHT_SELECTED = ResourceLocation.withDefaultNamespace("container/creative_inventory/tab_bottom_selected_2");
-    /** Vanilla tab sprite size: 26 wide, 32 long. Transposed, it is 26 tall and sticks 32 out from the panel. */
     private static final int THICKNESS = 26;
+    /** Room the tab column takes from its sidebar. */
     private static final int LENGTH = 32;
-    /** How far tabs sit into the panel edge (under it, or over it when selected). */
-    private static final int SHIFT = 4;
 
     private record Entry(Component name, ItemStack icon, boolean plus) {
     }
@@ -52,7 +41,6 @@ public final class VerticalTabs {
         int visibleCount;
         /** Skin only: smooth scroll position in pixels, the tab strip's visible span and the arrows. */
         float offset;
-        boolean skinned;
         int top;
         int bottom;
         @Nullable Bounds upArrow;
@@ -94,7 +82,7 @@ public final class VerticalTabs {
 
         @Override
         boolean enabled() {
-            if (!Config.get(Config.VERTICAL_TABS)) {
+            if (!ReorganisedSkin.enabled() || !Config.get(Config.VERTICAL_TABS)) {
                 return false;
             }
             TabStore.ensureLoaded();
@@ -149,7 +137,7 @@ public final class VerticalTabs {
     private static final Column FAVOURITES = new Column() {
         @Override
         boolean enabled() {
-            return Config.get(Config.FAVOURITE_TABS);
+            return ReorganisedSkin.enabled() && Config.get(Config.FAVOURITE_TABS);
         }
 
         @Override
@@ -294,118 +282,64 @@ public final class VerticalTabs {
         }
     }
 
-    public static void render(GuiGraphics graphics, int mouseX, int mouseY) {
+    /**
+     * EmiScreenManager.drawBackground (head): forget last frame's tabs. Only a visible skinned sidebar draws (and so
+     * makes clickable) its tab column again, so tabs come and go with the sidebars.
+     */
+    public static void beginFrame() {
         tooltip = null;
+        clearAreas();
+        FavouriteSearch.beginFrame();
         String query = EmiScreenManager.search != null ? EmiScreenManager.search.getValue() : "";
         if (!query.isEmpty() && lastQuery.isEmpty() && Config.get(Config.SEARCH_SHOWS_ALL) && TabState.selected() != null) {
             TabState.select(null);
             IndexScroll.reset(SidebarType.INDEX);
         }
         lastQuery = query;
-        FavouriteSearch.beginFrame();
+    }
+
+    /** Another screen is opening: drop the old screen's tab hitboxes, menu and drag. */
+    public static void hide() {
+        tooltip = null;
+        clearAreas();
+        menuTab = -1;
+        dragFrom = -1;
+        dragMoved = false;
+    }
+
+    private static void clearAreas() {
+        for (Column column : COLUMNS) {
+            column.area = null;
+            column.upArrow = null;
+            column.downArrow = null;
+        }
+    }
+
+    /** Part of the skin's background: the tab column belonging to a visible skinned sidebar. */
+    public static void render(EmiScreenManager.SidebarPanel panel, ReorganisedSkin.Layout skin, GuiGraphics graphics,
+                              int mouseX, int mouseY) {
+        for (Column column : COLUMNS) {
+            if (column.enabled() && column.panel() == panel && panel.getType() == column.type()) {
+                renderSkinned(column, skin, graphics, menuTab >= 0 ? -1 : mouseX, mouseY);
+            }
+        }
+    }
+
+    /** EmiScreenManager.drawBackground (end): the favourites search bar, drawn with the sidebars it belongs to. */
+    public static void renderBackground(GuiGraphics graphics, int mouseX, int mouseY) {
         EmiScreenManager.SidebarPanel favourites = EmiScreenManager.getPanelFor(SidebarType.FAVORITES);
         if (FavouriteSearch.enabled() && favourites != null && favourites.isVisible() && favourites.space != null
                 && favourites.getType() == SidebarType.FAVORITES) {
-            FavouriteSearch.render(graphics, favourites.space, favourites.getBounds().top() - 20, mouseX, mouseY, 0);
+            FavouriteSearch.render(graphics, favourites.space, mouseX, mouseY, 0);
         }
-        for (Column column : COLUMNS) {
-            render(column, graphics, menuTab >= 0 ? -1 : mouseX, mouseY);
-        }
-        renderMenu(graphics, mouseX, mouseY);
     }
 
-    private static void render(Column column, GuiGraphics graphics, int mouseX, int mouseY) {
-        column.area = null;
-        EmiScreenManager.SidebarPanel panel = column.enabled() ? column.panel() : null;
-        if (panel == null || panel.getType() != column.type()) {
-            return;
+    /** EmiScreenManager.render (end): the favourites tab menu, which opens over everything. */
+    public static void renderOverlay(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (FAVOURITES.area == null) {
+            menuTab = -1;
         }
-        column.skinned = false;
-        ReorganisedSkin.Layout skin = ReorganisedSkin.layout(panel);
-        if (skin != null) {
-            renderSkinned(column, skin, graphics, mouseX, mouseY);
-            return;
-        }
-        Bounds bounds = panel.getBounds();
-        int s = size();
-        int w = column.width();
-        boolean left = column.leftOfPanel();
-        int edgeLeft = bounds.x();
-        int edgeRight = bounds.right();
-        if (panel.theme == dev.emi.emi.config.SidebarTheme.VANILLA && panel.space != null) {
-            edgeLeft = panel.space.tx - 9;
-            edgeRight = panel.space.tx + panel.space.tw * 18 + 9 + IndexScroll.extraWidth(panel.getType());
-        }
-        // Tabs grow outwards from the frame's outer edge (their root); x/w only describe the clickable column.
-        int root = left ? edgeLeft : edgeRight;
-        int x = left ? root - w : root;
-        int top = bounds.y() + OVERLAP;
-        int step = s + spacing();
-        List<Entry> entries = column.entries();
-        int visible = Math.max(1, (bounds.height() - (entries.size() * step > bounds.height() ? 20 : 0)) / step);
-        column.scroll = Math.max(0, Math.min(column.scroll, entries.size() - visible));
-        boolean scrolling = entries.size() > visible;
-        int y0 = top + (scrolling ? 10 : 0);
-        column.area = new Bounds(x, top, w, bounds.height());
-        column.y0 = y0;
-        column.step = step;
-        column.visibleCount = visible;
-        int selectedIndex = column.selected();
-        Entry hovered = null;
-        var font = Minecraft.getInstance().font;
-        for (int i = column.scroll; i < Math.min(entries.size(), column.scroll + visible); i++) {
-            Entry entry = entries.get(i);
-            int y = y0 + (i - column.scroll) * step;
-            boolean selected = i == selectedIndex;
-            boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + s;
-            boolean raised = selected || hover;
-            int shift = SHIFT;
-            int sx = left ? root - LENGTH + shift : root - shift;
-            if (!selected) {
-                // Unselected and hovered tabs sit behind the sidebar frame: clip at the frame edge.
-                if (left) {
-                    graphics.enableScissor(sx, y, root, y + s);
-                } else {
-                    graphics.enableScissor(root, y, sx + LENGTH, y + s);
-                }
-            }
-            ResourceLocation sprite = left ? (raised ? LEFT_SELECTED : LEFT_UNSELECTED) : (raised ? RIGHT_SELECTED : RIGHT_UNSELECTED);
-            drawTransposed(graphics, sprite, sx, y, LENGTH, s);
-            int ix = sx + (LENGTH - 16) / 2;
-            int iy = y + (s - 16) / 2;
-            if (entry.plus()) {
-                graphics.drawString(font, "+", ix + 8 - font.width("+") / 2, iy + 4, 0xFF404040, false);
-            } else {
-                graphics.renderItem(entry.icon(), ix, iy);
-            }
-            if (!selected) {
-                graphics.disableScissor();
-            }
-            if (hover) {
-                hovered = entry;
-            }
-        }
-        if (column == FAVOURITES && dragFrom >= 0 && dragMoved) {
-            int target = dropIndex(column, dragY, entries.size() - 1);
-            int ly = y0 + (target - column.scroll) * step + (target > dragFrom ? s + spacing() / 2 : -1 - spacing() / 2);
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 400);
-            graphics.fill(x, ly, x + w, ly + 2, 0xFFFFFFFF);
-            graphics.pose().popPose();
-        }
-        if (scrolling) {
-            // The arrow sits in the right half of the 32px sprite: centre that half on the tabs.
-            int ax = (left ? x + w - LENGTH / 2 : x + LENGTH / 2) - 24;
-            graphics.blitSprite(SCROLL_UP, ax, top - 6, 32, 32);
-            graphics.blitSprite(SCROLL_DOWN, ax, top + bounds.height() - 26, 32, 32);
-        }
-        if (hovered != null) {
-            // Drawn once the whole screen has rendered (see renderTooltip): drawing it here, inside EMI's render,
-            // shows an empty box.
-            tooltip = hovered.name();
-            tooltipX = mouseX;
-            tooltipY = mouseY;
-        }
+        renderMenu(graphics, mouseX, mouseY);
     }
 
     private static final int SKIN_TAB = 26;
@@ -437,7 +371,6 @@ public final class VerticalTabs {
         int y0 = top - Math.round(column.offset);
         int x = left ? root - SKIN_REACH : root;
         int ix = left ? root - SKIN_TAB + 5 : root + 5;
-        column.skinned = true;
         column.top = top;
         column.bottom = bottom;
         column.step = step;
@@ -515,25 +448,6 @@ public final class VerticalTabs {
         }
     }
 
-    /** Blits a GUI sprite with its axes swapped, so the sprite's length runs across the screen. */
-    private static void drawTransposed(GuiGraphics graphics, ResourceLocation id, int x, int y, int w, int h) {
-        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = Minecraft.getInstance().getGuiSprites().getSprite(id);
-        graphics.flush();
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-        com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0, sprite.atlasLocation());
-        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexShader);
-        org.joml.Matrix4f m = graphics.pose().last().pose();
-        com.mojang.blaze3d.vertex.BufferBuilder buf = com.mojang.blaze3d.vertex.Tesselator.getInstance().begin(
-                com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX);
-        // Screen x follows the sprite's v axis and screen y its u axis.
-        buf.addVertex(m, x, y, 0).setUv(sprite.getU0(), sprite.getV0());
-        buf.addVertex(m, x, y + h, 0).setUv(sprite.getU1(), sprite.getV0());
-        buf.addVertex(m, x + w, y + h, 0).setUv(sprite.getU1(), sprite.getV1());
-        buf.addVertex(m, x + w, y, 0).setUv(sprite.getU0(), sprite.getV1());
-        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(buf.buildOrThrow());
-    }
-
     private static final String[] MENU = {"emi_reorganised.fav.set_icon", "emi_reorganised.fav.delete"};
 
     private static int menuWidth() {
@@ -575,6 +489,9 @@ public final class VerticalTabs {
     }
 
     public static boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (menuTab < 0 && covered(mouseX, mouseY)) {
+            return false;
+        }
         if (menuTab >= 0) {
             int row = menuRow(mouseX, mouseY);
             int tab = menuTab;
@@ -612,39 +529,20 @@ public final class VerticalTabs {
         List<Entry> entries = column.entries();
         int i;
         boolean onTab;
-        if (column.skinned) {
-            if (column.upArrow != null && column.upArrow.contains((int) mouseX, (int) mouseY)) {
-                column.scroll = Math.max(0, column.scroll - 1);
-                return true;
-            }
-            if (column.downArrow != null && column.downArrow.contains((int) mouseX, (int) mouseY)) {
-                column.scroll++;
-                return true;
-            }
-            if (mouseY < column.top || mouseY >= column.bottom) {
-                return false;
-            }
-            int rel = (int) Math.floor(mouseY - column.y0);
-            i = column.scroll + Math.floorDiv(rel, column.step);
-            onTab = Math.floorMod(rel, column.step) < SKIN_TAB;
-        } else {
-            Bounds bounds = panel.getBounds();
-            int s = size();
-            int step = s + spacing();
-            int visible = Math.max(1, (bounds.height() - (entries.size() * step > bounds.height() ? 20 : 0)) / step);
-            boolean scrolling = entries.size() > visible;
-            int y0 = a.y() + (scrolling ? 10 : 0);
-            if (button == 0 && scrolling && mouseY < y0) {
-                column.scroll = Math.max(0, column.scroll - 1);
-                return true;
-            }
-            i = column.scroll + (int) ((mouseY - y0) / step);
-            if (button == 0 && scrolling && i >= column.scroll + visible) {
-                column.scroll++;
-                return true;
-            }
-            onTab = (mouseY - y0) % step < s;
+        if (column.upArrow != null && column.upArrow.contains((int) mouseX, (int) mouseY)) {
+            column.scroll = Math.max(0, column.scroll - 1);
+            return true;
         }
+        if (column.downArrow != null && column.downArrow.contains((int) mouseX, (int) mouseY)) {
+            column.scroll++;
+            return true;
+        }
+        if (mouseY < column.top || mouseY >= column.bottom) {
+            return false;
+        }
+        int rel = (int) Math.floor(mouseY - column.y0);
+        i = column.scroll + Math.floorDiv(rel, column.step);
+        onTab = Math.floorMod(rel, column.step) < SKIN_TAB;
         if (i >= 0 && i < entries.size() && onTab) {
             if (button == 1) {
                 column.rightClick(i, (int) mouseX, (int) mouseY);
@@ -692,7 +590,27 @@ public final class VerticalTabs {
         return moved;
     }
 
+    /**
+     * True where another mod's UI has told EMI to keep out (such as an LDLib screen drawn over the sidebars), so our
+     * tabs and search bar leave those clicks alone.
+     */
+    public static boolean covered(double mouseX, double mouseY) {
+        dev.emi.emi.screen.EmiScreenBase base = dev.emi.emi.screen.EmiScreenBase.getCurrent();
+        if (base == null || base.isEmpty()) {
+            return false;
+        }
+        for (Bounds b : dev.emi.emi.registry.EmiExclusionAreas.getExclusion(base)) {
+            if (b.contains((int) mouseX, (int) mouseY) && !b.equals(base.bounds())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (covered(mouseX, mouseY)) {
+            return false;
+        }
         for (Column column : COLUMNS) {
             Bounds a = column.area;
             if (a != null && a.contains((int) mouseX, (int) mouseY)) {

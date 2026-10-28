@@ -7,6 +7,15 @@ public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     static {
+        BUILDER.comment("EMI Reorganised as a whole.").push("general");
+    }
+
+    public static final ModConfigSpec.BooleanValue ENABLED = BUILDER
+            .comment("Turn EMI Reorganised on. When off, EMI looks and sorts exactly as it would without this mod.")
+            .define("enabled", true);
+
+    static {
+        BUILDER.pop();
         BUILDER.comment("The EMI item index.").push("index");
     }
 
@@ -42,9 +51,8 @@ public final class Config {
             .define("favouriteTabs", true);
     public static final ModConfigSpec.EnumValue<TabSide> FAVOURITE_TAB_SIDE = BUILDER
             .comment("Which side of the favourites sidebar its tabs sit on.").defineEnum("favouriteTabSide", TabSide.RIGHT);
-    public static final ModConfigSpec.BooleanValue FAVOURITE_SEARCH = BUILDER
-            .comment("Replace the favourites sidebar's header with a search bar that filters the favourites.")
-            .define("favouriteSearch", true);
+    public static final ModConfigSpec.BooleanValue SEARCH_SHOWS_ALL = BUILDER
+            .comment("Switch the index to the 'Search All' tab when you start typing a search.").define("searchShowsAll", true);
     public static final ModConfigSpec.EnumValue<ScrollbarStyle> SCROLLBAR_STYLE = BUILDER
             .comment("Scroll bar look: NARROW, VANILLA_CREATIVE, or NARROW_CREATIVE (a half-width creative bar).")
             .defineEnum("scrollbarStyle", ScrollbarStyle.NARROW);
@@ -72,19 +80,6 @@ public final class Config {
             .comment("Always animate a shown sidebar rolling in when an inventory opens.").define("animateOnOpen", false);
     public static final ModConfigSpec.IntValue ROLLOUT_DURATION = BUILDER
             .comment("Roll animation length in milliseconds.").defineInRange("rolloutDuration", 200, 0, 2000);
-
-    static {
-        BUILDER.pop();
-        BUILDER.comment("EMI's search bar.").push("searchBar");
-    }
-
-    public static final ModConfigSpec.EnumValue<SearchBarPosition> SEARCH_BAR_POSITION = BUILDER
-            .comment("Where EMI's search bar sits. DEFAULT is EMI's own spot (screen centre). ABOVE_INDEX and BELOW_INDEX attach it to the index and shrink the index to fit.")
-            .defineEnum("searchBarPosition", SearchBarPosition.ABOVE_INDEX);
-    public static final ModConfigSpec.BooleanValue SEARCH_SHOWS_ALL = BUILDER
-            .comment("Switch the index to the 'Search All' tab when you start typing a search.").define("searchShowsAll", true);
-    public static final ModConfigSpec.BooleanValue SEARCH_CLEAR_BUTTON = BUILDER
-            .comment("Show an 'x' inside the search bar that clears it while it has text.").define("clearButton", true);
 
     static {
         BUILDER.pop();
@@ -118,12 +113,6 @@ public final class Config {
     public enum SidebarState {
         IN,
         OUT
-    }
-
-    public enum SearchBarPosition {
-        DEFAULT,
-        ABOVE_INDEX,
-        BELOW_INDEX
     }
 
     public enum ScrollbarStyle {

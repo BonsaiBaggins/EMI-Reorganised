@@ -25,7 +25,7 @@ public final class OpenEditorButton extends Button {
 
     private OpenEditorButton(AbstractContainerScreen<?> screen) {
         super(0, 0, SIZE, SIZE, Component.translatable("emi_reorganised.open_editor"),
-                b -> Minecraft.getInstance().setScreen(new TabEditorScreen(screen)), DEFAULT_NARRATION);
+                b -> open(screen), DEFAULT_NARRATION);
         this.screen = screen;
         setTooltip(Tooltip.create(Component.translatable("emi_reorganised.open_editor")));
         place();
@@ -35,7 +35,15 @@ public final class OpenEditorButton extends Button {
         return screen instanceof InventoryScreen || screen instanceof CreativeModeInventoryScreen;
     }
 
+    /** Opens the editor; closing it returns to {@code parent}. */
+    public static void open(@org.jetbrains.annotations.Nullable Screen parent) {
+        Minecraft.getInstance().setScreen(new TabEditorScreen(parent));
+    }
+
     private static boolean shown() {
+        if (!com.bonsaibaggins.emireorganised.EmiReorganised.active()) {
+            return false;
+        }
         return switch (Config.get(Config.EDITOR_BUTTON)) {
             case ALWAYS -> true;
             case NEVER -> false;

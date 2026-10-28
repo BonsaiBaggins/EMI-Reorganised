@@ -1,6 +1,5 @@
 package com.bonsaibaggins.emireorganised.mixin;
 
-import com.bonsaibaggins.emireorganised.Config;
 import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.screen.widget.EmiSearchWidget;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,7 +20,7 @@ public abstract class EmiSearchClearMixin {
     private boolean simemibanners$showClear() {
         EditBox box = (EditBox) (Object) this;
         return EmiConfig.enabled && box.isVisible() && !box.getValue().isEmpty()
-                && Config.get(Config.SEARCH_CLEAR_BUTTON);
+                && com.bonsaibaggins.emireorganised.skin.ReorganisedSkin.enabled();
     }
 
     @Unique

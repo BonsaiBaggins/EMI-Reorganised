@@ -13,16 +13,22 @@ public final class EmiReorganised {
     public static final String MOD_ID = "emi_reorganised";
     public static final Logger LOGGER = LoggerFactory.getLogger("EMI Reorganised");
 
+    /** False when the player has turned the whole mod off in its config. */
+    public static boolean active() {
+        return Config.get(Config.ENABLED);
+    }
+
     public EmiReorganised(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
         container.registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
                 (mc, parent) -> net.neoforged.fml.ModList.get().isLoaded("yet_another_config_lib_v3")
                         ? com.bonsaibaggins.emireorganised.config.YaclConfigScreen.create(parent)
                         : new net.neoforged.neoforge.client.gui.ConfigurationScreen(container, parent));
-        modBus.addListener(com.bonsaibaggins.emireorganised.editor.EditorKeys::register);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.bonsaibaggins.emireorganised.editor.EditorKeys::tick);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ClientTickEvent.Post event) ->
-                com.bonsaibaggins.emireorganised.config.EmiDefaults.applyOnce());
+    {
+            com.bonsaibaggins.emireorganised.config.EmiDefaults.applyOnce();
+            com.bonsaibaggins.emireorganised.compat.AuthoringMode.applyOnce();
+        });
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.bonsaibaggins.emireorganised.editor.OpenEditorButton::onInit);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.bonsaibaggins.emireorganised.sidebar.IndexScroll::onRenderPre);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.bonsaibaggins.emireorganised.sidebar.IndexScroll::onMousePressed);
@@ -31,10 +37,11 @@ public final class EmiReorganised {
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.Opening event) -> {
             // Our sidebar widgets are drawn by EMI; stop the previous screen's ones taking clicks on the new screen.
             com.bonsaibaggins.emireorganised.sidebar.FavouriteSearch.hide();
+            com.bonsaibaggins.emireorganised.sidebar.VerticalTabs.hide();
             com.bonsaibaggins.emireorganised.sidebar.IndexScroll.clearBars();
             var mc = net.minecraft.client.Minecraft.getInstance();
             if (event.getNewScreen() instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen && mc.player != null
-                    && Config.get(Config.SURVIVAL_INVENTORY_IN_CREATIVE)) {
+                    && active() && Config.get(Config.SURVIVAL_INVENTORY_IN_CREATIVE)) {
                 event.setNewScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
             }
         });
@@ -57,11 +64,6 @@ public final class EmiReorganised {
                 (net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
             if (event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_A && net.neoforged.fml.ModList.get().isLoaded("create")
                     && com.bonsaibaggins.emireorganised.compat.CreateSchematics.tryAddHovered(event.getScreen())) {
-                event.setCanceled(true);
-            }
-        });
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.KeyPressed.Pre event) -> {
-            if (com.bonsaibaggins.emireorganised.editor.EditorKeys.handleScreenKey(event.getKeyCode(), event.getScanCode())) {
                 event.setCanceled(true);
             }
         });

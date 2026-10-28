@@ -13,6 +13,7 @@ public abstract class InventoryScreenMixin {
     @Redirect(method = {"init", "containerTick"},
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/MultiPlayerGameMode;hasInfiniteItems()Z"))
     private boolean emireorganised$stayInSurvivalInventory(MultiPlayerGameMode gameMode) {
-        return !Config.get(Config.SURVIVAL_INVENTORY_IN_CREATIVE) && gameMode.hasInfiniteItems();
+        return !(com.bonsaibaggins.emireorganised.EmiReorganised.active() && Config.get(Config.SURVIVAL_INVENTORY_IN_CREATIVE))
+                && gameMode.hasInfiniteItems();
     }
 }

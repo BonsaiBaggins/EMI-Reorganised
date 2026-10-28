@@ -31,7 +31,8 @@ public final class SidebarRollout {
     }
 
     private static boolean enabled() {
-        return com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTONS);
+        return com.bonsaibaggins.emireorganised.EmiReorganised.active()
+                && com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTONS);
     }
 
     private static int index(SidebarSide side) {
@@ -113,7 +114,7 @@ public final class SidebarRollout {
     /** Shifts a left/right sidebar's layout bounds outwards by the hidden fraction of their width. */
     public static Bounds shift(SidebarSide side, Bounds bounds) {
         int i = index(side);
-        if (i < 0 || progress[i] >= 1) {
+        if (i < 0 || progress[i] >= 1 || !com.bonsaibaggins.emireorganised.EmiReorganised.active()) {
             return bounds;
         }
         int full = bounds.width() + 4 + com.bonsaibaggins.emireorganised.port.SidebarExtras.tabBarWidth() + 40;

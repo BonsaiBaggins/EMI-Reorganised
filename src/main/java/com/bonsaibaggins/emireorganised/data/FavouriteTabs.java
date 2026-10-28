@@ -212,7 +212,7 @@ public final class FavouriteTabs {
     }
 
     public static boolean readOnly() {
-        return !bypassReadOnly && selectedSchematic() != null;
+        return !bypassReadOnly && com.bonsaibaggins.emireorganised.EmiReorganised.active() && selectedSchematic() != null;
     }
 
     /** Adds and selects a read-only tab listing a schematic's materials. */

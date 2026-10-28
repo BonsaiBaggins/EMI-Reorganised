@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Reserves room for, draws and handles clicks on our vertical tab column. */
+/** Reserves room for and handles clicks on the tab columns; the skin draws them with the sidebars. */
 @Mixin(value = EmiScreenManager.class, remap = false)
 public abstract class VerticalTabsMixin {
     @ModifyVariable(method = "createScreenSpace", at = @At("HEAD"), argsOnly = true, ordinal = 0)
@@ -19,9 +19,19 @@ public abstract class VerticalTabsMixin {
         return VerticalTabs.reserve(panel, bounds);
     }
 
+    @Inject(method = "drawBackground", at = @At("HEAD"))
+    private static void emireorganised$beginTabs(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        VerticalTabs.beginFrame();
+    }
+
+    @Inject(method = "drawBackground", at = @At("RETURN"))
+    private static void emireorganised$renderFavouriteSearch(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        VerticalTabs.renderBackground(context.raw(), mouseX, mouseY);
+    }
+
     @Inject(method = "render", at = @At("RETURN"))
-    private static void emireorganised$renderTabs(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        VerticalTabs.render(context.raw(), mouseX, mouseY);
+    private static void emireorganised$renderTabOverlay(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        VerticalTabs.renderOverlay(context.raw(), mouseX, mouseY);
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
