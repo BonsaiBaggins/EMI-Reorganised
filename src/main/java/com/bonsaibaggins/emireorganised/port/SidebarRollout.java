@@ -151,8 +151,6 @@ public final class SidebarRollout {
         }
         Bounds bounds = panel != null && panel.space != null && panel.isVisible() ? panel.getBounds() : null;
         if (bounds != null) {
-            // The frame grows to the right for a scroll bar; EMI's bounds don't include that.
-            bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() + com.bonsaibaggins.emireorganised.sidebar.IndexScroll.extraWidth(panel.getType()), bounds.height());
             bounds = com.bonsaibaggins.emireorganised.port.SidebarExtras.withTabBar(panel, bounds);
         }
         if (bounds != null && bounds.height() > 0 && progress[i] >= 1) {
@@ -161,8 +159,8 @@ public final class SidebarRollout {
         if (bounds == null && shown[i]) {
             return null;
         }
-        int bw = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_WIDTH);
-        int bh = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_HEIGHT);
+        int bw = ReorganisedSkin.ROLL_W;
+        int bh = ReorganisedSkin.ROLL_H;
         int pad = com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.ROLLOUT_BUTTON_PADDING);
         int x;
         if (i == LEFT) {

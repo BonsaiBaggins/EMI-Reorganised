@@ -200,7 +200,7 @@ public final class BannerRenderer {
             blit(graphics, s, cx + 1, y, tw - 2, h, 1, tw - 1);
             blit(graphics, s, cx + tw - 1, y, right - 1 - (cx + tw - 1), h, tw - 2, tw - 1);
             blit(graphics, s, right - 1, y, 1, h, tw - 1, tw);
-            if (com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.EDGE_MODE) == com.bonsaibaggins.emireorganised.Config.EdgeMode.AVERAGE && w > tw && s.edges() != null) {
+            if (com.bonsaibaggins.emireorganised.Config.get(com.bonsaibaggins.emireorganised.Config.BANNER_EDGE_STYLE) == com.bonsaibaggins.emireorganised.Config.EdgeMode.AVERAGE && w > tw && s.edges() != null) {
                 // Keep the stretched frame rows, but replace the stretched interior with a solid average colour.
                 graphics.fill(x + 1, y + 1, cx + 1, y + h - 1, s.edges()[0]);
                 graphics.fill(cx + tw - 1, y + 1, right - 1, y + h - 1, s.edges()[1]);

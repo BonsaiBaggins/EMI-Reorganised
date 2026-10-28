@@ -71,7 +71,7 @@ public final class ReorganisedSkin {
     }
 
     public static boolean enabled() {
-        return com.bonsaibaggins.emireorganised.EmiReorganised.active() && Config.get(Config.REORGANISED_SKIN);
+        return com.bonsaibaggins.emireorganised.EmiReorganised.active();
     }
 
     public static boolean applies(@Nullable EmiScreenManager.SidebarPanel panel) {

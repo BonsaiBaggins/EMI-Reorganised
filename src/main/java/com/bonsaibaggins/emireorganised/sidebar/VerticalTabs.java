@@ -82,7 +82,7 @@ public final class VerticalTabs {
 
         @Override
         boolean enabled() {
-            if (!ReorganisedSkin.enabled() || !Config.get(Config.VERTICAL_TABS)) {
+            if (!ReorganisedSkin.enabled()) {
                 return false;
             }
             TabStore.ensureLoaded();
@@ -236,13 +236,9 @@ public final class VerticalTabs {
         return null;
     }
 
-    /** Called while EMI builds a sidebar: takes the scroll bar's and tab column's room from it. */
+    /** Called while EMI builds a sidebar: takes the tab column's room from it. */
     public static Bounds reserve(EmiScreenManager.SidebarPanel panel, Bounds bounds) {
         bounds = com.bonsaibaggins.emireorganised.editor.OpenEditorButton.avoid(panel, bounds);
-        int extra = IndexScroll.extraWidth(panel.getType());
-        if (extra > 0 && bounds.width() > extra) {
-            bounds = new Bounds(bounds.x(), bounds.y(), bounds.width() - extra, bounds.height());
-        }
         Column column = columnFor(panel);
         int w = column != null ? column.width() : 0;
         if (column == null || bounds.width() <= w) {

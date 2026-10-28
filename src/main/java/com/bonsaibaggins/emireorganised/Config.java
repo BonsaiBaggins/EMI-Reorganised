@@ -19,43 +19,32 @@ public final class Config {
         BUILDER.comment("The EMI item index.").push("index");
     }
 
-    public static final ModConfigSpec.BooleanValue REORGANISED_SKIN = BUILDER
-            .comment("Draw EMI's left and right sidebars with the Reorganised Vanilla skin, whatever theme EMI is set to.",
-                    "Its sprites live under assets/emi_reorganised/textures/gui/sprites/skin/ and can be replaced by resource packs.")
-            .define("reorganisedVanillaSkin", true);
-
+    public static final ModConfigSpec.EnumValue<EdgeMode> BANNER_EDGE_STYLE = BUILDER
+            .comment("How banners wider than their artwork fill the sides.")
+            .defineEnum("bannerEdgeStyle", EdgeMode.STRETCH);
     public static final ModConfigSpec.BooleanValue SHOW_BANNERS_WHILE_SEARCHING = BUILDER
             .comment("Keep banners visible while a search is typed.")
             .define("showBannersWhileSearching", false);
-    public static final ModConfigSpec.EnumValue<EdgeMode> EDGE_MODE = BUILDER
-            .comment("How banners wider than their artwork fill the sides.")
-            .defineEnum("edgeMode", EdgeMode.STRETCH);
+    public static final ModConfigSpec.EnumValue<TabSide> TAB_SIDE = BUILDER
+            .comment("Which side of the index the tabs sit on.").defineEnum("tabSide", TabSide.LEFT);
     public static final ModConfigSpec.BooleanValue SHOW_UNSORTED = BUILDER
             .comment("List items that aren't in any tab in an automatic 'Unsorted' tab.")
             .define("showUnsortedTab", true);
-
-    public static final ModConfigSpec.BooleanValue VERTICAL_TABS = BUILDER
-            .comment("Show a column of tab buttons beside EMI's index.").define("verticalTabs", true);
-    public static final ModConfigSpec.EnumValue<TabSide> TAB_SIDE = BUILDER
-            .comment("Which side of the index the tabs sit on.").defineEnum("tabSide", TabSide.LEFT);
     public static final ModConfigSpec.IntValue TAB_SPACING = BUILDER
             .comment("Gap between vertical tab buttons.").defineInRange("tabSpacing", 1, 0, 10);
-    public static final ModConfigSpec.BooleanValue INDEX_SCROLLING = BUILDER
-            .comment("Scroll the index with a scroll bar and the mouse wheel instead of pages (no page buttons, no wrapping).")
-            .define("indexScrolling", true);
-    public static final ModConfigSpec.BooleanValue FAVOURITES_SCROLLING = BUILDER
-            .comment("Scroll the favourites sidebar with a scroll bar and the mouse wheel instead of pages.")
-            .define("favouritesScrolling", true);
+    public static final ModConfigSpec.BooleanValue SEARCH_SHOWS_ALL = BUILDER
+            .comment("Switch the index to the 'Search All' tab when you start typing a search.").define("searchShowsAll", true);
+
+    static {
+        BUILDER.pop();
+        BUILDER.comment("EMI's favourites sidebar.").push("favourites");
+    }
+
     public static final ModConfigSpec.BooleanValue FAVOURITE_TABS = BUILDER
             .comment("Show tabs beside the favourites sidebar, each holding its own list of favourites.")
             .define("favouriteTabs", true);
     public static final ModConfigSpec.EnumValue<TabSide> FAVOURITE_TAB_SIDE = BUILDER
             .comment("Which side of the favourites sidebar its tabs sit on.").defineEnum("favouriteTabSide", TabSide.RIGHT);
-    public static final ModConfigSpec.BooleanValue SEARCH_SHOWS_ALL = BUILDER
-            .comment("Switch the index to the 'Search All' tab when you start typing a search.").define("searchShowsAll", true);
-    public static final ModConfigSpec.EnumValue<ScrollbarStyle> SCROLLBAR_STYLE = BUILDER
-            .comment("Scroll bar look: NARROW, VANILLA_CREATIVE, or NARROW_CREATIVE (a half-width creative bar).")
-            .defineEnum("scrollbarStyle", ScrollbarStyle.NARROW);
 
     static {
         BUILDER.pop();
@@ -64,10 +53,6 @@ public final class Config {
 
     public static final ModConfigSpec.BooleanValue ROLLOUT_BUTTONS = BUILDER
             .comment("Show the roll in/out buttons on EMI's sidebars.").define("rolloutButtons", true);
-    public static final ModConfigSpec.IntValue ROLLOUT_BUTTON_WIDTH = BUILDER
-            .comment("Button width.").defineInRange("rolloutButtonWidth", 10, 6, 40);
-    public static final ModConfigSpec.IntValue ROLLOUT_BUTTON_HEIGHT = BUILDER
-            .comment("Button height.").defineInRange("rolloutButtonHeight", 20, 6, 80);
     public static final ModConfigSpec.IntValue ROLLOUT_BUTTON_PADDING = BUILDER
             .comment("Gap between the button and the sidebar or screen edge.").defineInRange("rolloutButtonPadding", 2, 0, 50);
     public static final ModConfigSpec.EnumValue<ButtonPosition> ROLLOUT_BUTTON_POSITION = BUILDER
@@ -113,12 +98,6 @@ public final class Config {
     public enum SidebarState {
         IN,
         OUT
-    }
-
-    public enum ScrollbarStyle {
-        NARROW,
-        VANILLA_CREATIVE,
-        NARROW_CREATIVE
     }
 
     public enum TabSide {
