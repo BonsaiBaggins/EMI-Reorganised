@@ -48,7 +48,7 @@ public final class CreateSchematics {
 
     /** "A" over a filled schematic in an inventory adds a favourites tab with its material list. */
     public static boolean tryAddHovered(Screen screen) {
-        if (!(screen instanceof AbstractContainerScreen<?> container) || screen.getFocused() instanceof EditBox
+        if (!com.bonsaibaggins.emireorganised.EmiReorganised.active() || !(screen instanceof AbstractContainerScreen<?> container) || screen.getFocused() instanceof EditBox
                 || (EmiScreenManager.search != null && EmiScreenManager.search.isFocused())) {
             return false;
         }

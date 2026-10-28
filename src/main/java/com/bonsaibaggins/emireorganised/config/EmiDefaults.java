@@ -17,7 +17,7 @@ public final class EmiDefaults {
     }
 
     public static void applyOnce() {
-        if (checked) {
+        if (checked || !EmiReorganised.active()) {
             return;
         }
         checked = true;

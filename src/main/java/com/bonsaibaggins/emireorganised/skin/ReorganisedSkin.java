@@ -71,7 +71,7 @@ public final class ReorganisedSkin {
     }
 
     public static boolean enabled() {
-        return Config.get(Config.REORGANISED_SKIN);
+        return com.bonsaibaggins.emireorganised.EmiReorganised.active();
     }
 
     public static boolean applies(@Nullable EmiScreenManager.SidebarPanel panel) {
@@ -110,6 +110,9 @@ public final class ReorganisedSkin {
         int tx = panelX + 2;
         int ty = panelY + 2;
         int th = Math.max(0, (panelBounds.bottom() - 1 - ty + 17) / 18);
+        if (IndexScroll.enabled(panel.getType())) {
+            th++; // A row scrolled partly out of the top lets one more in at the bottom.
+        }
         if (tw <= 0 || panelBounds.height() < 20) {
             tw = 0;
             th = 0;
@@ -123,7 +126,7 @@ public final class ReorganisedSkin {
     }
 
     /** Frame, search bar slot and item panel, drawn behind the items. */
-    public static void drawBackground(EmiDrawContext context, EmiScreenManager.SidebarPanel panel) {
+    public static void drawBackground(EmiDrawContext context, EmiScreenManager.SidebarPanel panel, int mouseX, int mouseY) {
         Layout layout = layout(panel);
         if (layout == null) {
             return;
@@ -136,6 +139,7 @@ public final class ReorganisedSkin {
         if (scroll >= 0) {
             drawScrollbar(graphics, layout, scroll);
         }
+        com.bonsaibaggins.emireorganised.sidebar.VerticalTabs.render(panel, layout, graphics, mouseX, mouseY);
     }
 
     /** The scroll bar set into the frame; {@code frac} is the scroll position from 0 to 1. */

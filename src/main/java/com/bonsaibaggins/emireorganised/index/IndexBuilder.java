@@ -42,7 +42,7 @@ public final class IndexBuilder {
     /** The sequence for a sidebar, or null to leave EMI's own list. */
     @Nullable
     public static List<Object> sequence(SidebarType type, List<? extends EmiIngredient> original) {
-        if (type != SidebarType.INDEX) {
+        if (type != SidebarType.INDEX || !com.bonsaibaggins.emireorganised.EmiReorganised.active()) {
             return null;
         }
         TabStore.ensureLoaded();
@@ -51,7 +51,7 @@ public final class IndexBuilder {
         }
         boolean searching = searching();
         boolean banners = !searching || Config.get(Config.SHOW_BANNERS_WHILE_SEARCHING);
-        List<Object> key = List.of(TabStore.version(), Objects.toString(TabState.selected()), searching, banners,
+        List<Object> key = List.of(TabStore.version(), Objects.toString(selectedTab()), searching, banners,
                 System.identityHashCode(original), original.size(), BannerImages.version(), GroupState.version());
         if (key.equals(cacheKey)) {
             return cache;
@@ -61,16 +61,20 @@ public final class IndexBuilder {
         return cache;
     }
 
+    /** The tab the index shows; with the tab column hidden there's nothing to pick a tab with, so it shows them all. */
+    @Nullable
+    private static String selectedTab() {
+        return com.bonsaibaggins.emireorganised.sidebar.VerticalTabs.enabled() ? TabState.selected() : null;
+    }
+
     private static List<Object> build(List<? extends EmiIngredient> original, boolean searching, boolean banners) {
-        Set<EmiStack> allowed = null;
-        if (searching) {
-            allowed = new HashSet<>();
-            for (EmiIngredient ingredient : original) {
-                allowed.addAll(ingredient.getEmiStacks());
-            }
+        // Only what EMI itself lists: its search results, or without a search every stack it doesn't hide.
+        Set<EmiStack> allowed = new HashSet<>();
+        for (EmiIngredient ingredient : original) {
+            allowed.addAll(ingredient.getEmiStacks());
         }
         members = Collections.newSetFromMap(new IdentityHashMap<>());
-        String selected = TabState.selected();
+        String selected = selectedTab();
         List<Object> out = new ArrayList<>();
         Set<EmiStack> seen = new HashSet<>();
         if (TabState.UNSORTED.equals(selected)) {

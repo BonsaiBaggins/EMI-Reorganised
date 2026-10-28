@@ -1,8 +1,6 @@
 package com.bonsaibaggins.emireorganised.config;
 
 import com.bonsaibaggins.emireorganised.Config;
-import com.electronwill.nightconfig.core.UnmodifiableConfig;
-import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
@@ -10,10 +8,14 @@ import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.EnumControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
-import net.minecraft.client.Minecraft;
+import java.util.Map;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -26,22 +28,10 @@ public final class YaclConfigScreen {
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
                 .title(Component.translatable("emi_reorganised.config.title"))
                 .save(Config.SPEC::save);
-        boolean first = true;
-        for (UnmodifiableConfig.Entry section : Config.SPEC.getValues().entrySet()) {
-            if (!(section.getValue() instanceof UnmodifiableConfig values)) {
-                continue;
-            }
+        for (Map.Entry<String, List<ModConfigSpec.ConfigValue<?>>> section : sections().entrySet()) {
             ConfigCategory.Builder category = ConfigCategory.createBuilder().name(name(section.getKey()));
-            if (first) {
-                first = false;
-                category.option(ButtonOption.createBuilder()
-                        .name(Component.translatable("emi_reorganised.config.keybind"))
-                        .description(OptionDescription.of(Component.translatable("emi_reorganised.config.keybind.tip")))
-                        .action(screen -> Minecraft.getInstance().setScreen(new KeyBindsScreen(screen, Minecraft.getInstance().options)))
-                        .build());
-            }
-            for (UnmodifiableConfig.Entry entry : values.entrySet()) {
-                Option<?> option = option(entry.getKey(), entry.getValue());
+            for (ModConfigSpec.ConfigValue<?> value : section.getValue()) {
+                Option<?> option = option(value.getPath().get(value.getPath().size() - 1), value);
                 if (option != null) {
                     category.option(option);
                 }
@@ -49,6 +39,26 @@ public final class YaclConfigScreen {
             builder.category(category.build());
         }
         return builder.build().generateScreen(parent);
+    }
+
+    /**
+     * Options grouped by section, both in the order {@link Config} declares them. The spec's own maps don't keep that
+     * order.
+     */
+    private static Map<String, List<ModConfigSpec.ConfigValue<?>>> sections() {
+        Map<String, List<ModConfigSpec.ConfigValue<?>>> sections = new LinkedHashMap<>();
+        for (Field field : Config.class.getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) || !ModConfigSpec.ConfigValue.class.isAssignableFrom(field.getType())) {
+                continue;
+            }
+            try {
+                ModConfigSpec.ConfigValue<?> value = (ModConfigSpec.ConfigValue<?>) field.get(null);
+                sections.computeIfAbsent(value.getPath().get(0), k -> new ArrayList<>()).add(value);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return sections;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

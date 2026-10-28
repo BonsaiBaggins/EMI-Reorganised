@@ -433,12 +433,12 @@ public class TabEditorScreen extends Screen {
         return palette;
     }
 
-    /** Every item EMI lists (including variants such as potions), then any other registered items. */
+    /** Every item EMI lists (including variants such as potions), leaving out stacks EMI hides. */
     private static List<ItemStack> allStacks() {
         if (allStacks == null || allStacks.isEmpty()) {
             List<ItemStack> out = new ArrayList<>();
             java.util.Set<Item> seen = new java.util.HashSet<>();
-            List<dev.emi.emi.api.stack.EmiStack> emi = dev.emi.emi.registry.EmiStackList.stacks;
+            List<dev.emi.emi.api.stack.EmiStack> emi = dev.emi.emi.registry.EmiStackList.filteredStacks;
             if (emi != null) {
                 for (dev.emi.emi.api.stack.EmiStack stack : emi) {
                     ItemStack item = stack.getItemStack();
@@ -446,11 +446,6 @@ public class TabEditorScreen extends Screen {
                         out.add(item.copyWithCount(1));
                         seen.add(item.getItem());
                     }
-                }
-            }
-            for (Item item : BuiltInRegistries.ITEM) {
-                if (item != Items.AIR && seen.add(item)) {
-                    out.add(item.getDefaultInstance());
                 }
             }
             allStacks = out;
